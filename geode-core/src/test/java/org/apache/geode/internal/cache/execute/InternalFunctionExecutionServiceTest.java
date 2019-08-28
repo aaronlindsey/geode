@@ -15,28 +15,42 @@
 package org.apache.geode.internal.cache.execute;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
+import junitparams.naming.TestCaseName;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.RegionAttributes;
 import org.apache.geode.cache.client.Pool;
+import org.apache.geode.cache.execute.Function;
 import org.apache.geode.cache.execute.FunctionException;
+import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.internal.cache.LocalRegion;
 import org.apache.geode.internal.cache.PartitionedRegion;
 
+@RunWith(JUnitParamsRunner.class)
 public class InternalFunctionExecutionServiceTest {
   private InternalFunctionExecutionServiceImpl functionExecutionService;
+  private MeterRegistry meterRegistry;
 
   @Before
   public void setUp() {
-    functionExecutionService = spy(new InternalFunctionExecutionServiceImpl());
+    meterRegistry = new SimpleMeterRegistry();
+    functionExecutionService = spy(new InternalFunctionExecutionServiceImpl(() -> mock(
+        InternalDistributedSystem.class), (ds) -> meterRegistry));
   }
 
   @Test
@@ -97,5 +111,39 @@ public class InternalFunctionExecutionServiceTest {
 
     assertThat(functionExecutionService.onRegion(mockRegion))
         .isInstanceOf(PartitionedRegionFunctionExecutor.class);
+  }
+
+  @Test
+  public void registerFunction_meterRegistryIsNull_doesNotThrow() {
+    InternalFunctionExecutionServiceImpl functionExecutionService =
+        new InternalFunctionExecutionServiceImpl(() -> mock(InternalDistributedSystem.class),
+            (ds) -> null);
+    Function function = mock(Function.class);
+    when(function.getId()).thenReturn("foo");
+
+    assertThatCode(() -> functionExecutionService.registerFunction(function))
+        .doesNotThrowAnyException();
+  }
+
+  @Test
+  @Parameters({"true", "false"})
+  @TestCaseName("{method}(succeededTagValue={0})")
+  public void registerFunction_registersFunctionExecutionsTimer(boolean succeededTagValue) {
+    Function function = mock(Function.class);
+
+    when(function.getId()).thenReturn("foo");
+
+    functionExecutionService.registerFunction(function);
+
+    Timer timer = meterRegistry
+        .find("geode.function.executions")
+        .tag("function", "foo")
+        .tag("succeeded", String.valueOf(succeededTagValue))
+        .timer();
+
+    assertThat(timer)
+        .as("geode.function.executions timer with tags function=foo, succeeded=%s",
+            succeededTagValue)
+        .isNotNull();
   }
 }
