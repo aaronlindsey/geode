@@ -38,6 +38,7 @@ import org.apache.geode.cache.client.Pool;
 import org.apache.geode.cache.execute.Function;
 import org.apache.geode.cache.execute.FunctionException;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
+import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.LocalRegion;
 import org.apache.geode.internal.cache.PartitionedRegion;
 
@@ -49,8 +50,14 @@ public class InternalFunctionExecutionServiceTest {
   @Before
   public void setUp() {
     meterRegistry = new SimpleMeterRegistry();
-    functionExecutionService = spy(new InternalFunctionExecutionServiceImpl(() -> mock(
-        InternalDistributedSystem.class), (ds) -> meterRegistry));
+    InternalDistributedSystem internalDistributedSystem = mock(InternalDistributedSystem.class);
+    InternalCache internalCache = mock(InternalCache.class);
+
+    when(internalDistributedSystem.getCache()).thenReturn(internalCache);
+    when(internalCache.getMeterRegistry()).thenReturn(meterRegistry);
+
+    functionExecutionService =
+        spy(new InternalFunctionExecutionServiceImpl(() -> internalDistributedSystem));
   }
 
   @Test
@@ -114,15 +121,31 @@ public class InternalFunctionExecutionServiceTest {
   }
 
   @Test
-  public void registerFunction_meterRegistryIsNull_doesNotThrow() {
-    InternalFunctionExecutionServiceImpl functionExecutionService =
-        new InternalFunctionExecutionServiceImpl(() -> mock(InternalDistributedSystem.class),
-            (ds) -> null);
+  public void registerFunction_cacheIsNull_doesNotThrow() {
+    InternalDistributedSystem internalDistributedSystem = mock(InternalDistributedSystem.class);
     Function function = mock(Function.class);
+    when(internalDistributedSystem.getCache()).thenReturn(null);
     when(function.getId()).thenReturn("foo");
 
-    assertThatCode(() -> functionExecutionService.registerFunction(function))
-        .doesNotThrowAnyException();
+    InternalFunctionExecutionServiceImpl service =
+        new InternalFunctionExecutionServiceImpl(() -> internalDistributedSystem);
+
+    assertThatCode(() -> service.registerFunction(function)).doesNotThrowAnyException();
+  }
+
+  @Test
+  public void registerFunction_meterRegistryIsNull_doesNotThrow() {
+    InternalDistributedSystem internalDistributedSystem = mock(InternalDistributedSystem.class);
+    InternalCache internalCache = mock(InternalCache.class);
+    Function function = mock(Function.class);
+    when(internalDistributedSystem.getCache()).thenReturn(internalCache);
+    when(internalCache.getMeterRegistry()).thenReturn(null);
+    when(function.getId()).thenReturn("foo");
+
+    InternalFunctionExecutionServiceImpl service =
+        new InternalFunctionExecutionServiceImpl(() -> internalDistributedSystem);
+
+    assertThatCode(() -> service.registerFunction(function)).doesNotThrowAnyException();
   }
 
   @Test

@@ -69,18 +69,15 @@ public class InternalFunctionExecutionServiceImpl
   private static final ConcurrentHashMap<String, Function> idToFunctionMap =
       new ConcurrentHashMap<>();
   private final Supplier<InternalDistributedSystem> distributedSystemSupplier;
-  private final java.util.function.Function<InternalDistributedSystem, MeterRegistry> meterRegistryProvider;
 
   public InternalFunctionExecutionServiceImpl() {
-    this(() -> getInternalDistributedSystem(), (ds) -> getMeterRegistry(ds));
+    this(() -> getInternalDistributedSystem());
   }
 
   @VisibleForTesting
   InternalFunctionExecutionServiceImpl(
-      Supplier<InternalDistributedSystem> distributedSystemSupplier,
-      java.util.function.Function<InternalDistributedSystem, MeterRegistry> meterRegistryProvider) {
+      Supplier<InternalDistributedSystem> distributedSystemSupplier) {
     this.distributedSystemSupplier = distributedSystemSupplier;
-    this.meterRegistryProvider = meterRegistryProvider;
   }
 
   // FunctionExecutionService API ----------------------------------------------------------------
@@ -188,7 +185,7 @@ public class InternalFunctionExecutionServiceImpl
           "For Functions with isHA true, hasResult must also be true.");
     }
 
-    MeterRegistry meterRegistry = meterRegistryProvider.apply(distributedSystemSupplier.get());
+    MeterRegistry meterRegistry = getMeterRegistry(distributedSystemSupplier.get());
 
     if (meterRegistry != null) {
       Timer.builder("geode.function.executions")
@@ -437,8 +434,8 @@ public class InternalFunctionExecutionServiceImpl
     return system;
   }
 
-  @VisibleForTesting
-  static MeterRegistry getMeterRegistry(InternalDistributedSystem internalDistributedSystem) {
+  private static MeterRegistry getMeterRegistry(
+      InternalDistributedSystem internalDistributedSystem) {
     InternalCache internalCache = internalDistributedSystem.getCache();
 
     return internalCache == null
