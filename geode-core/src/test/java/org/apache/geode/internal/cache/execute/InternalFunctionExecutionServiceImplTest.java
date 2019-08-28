@@ -43,7 +43,7 @@ import org.apache.geode.internal.cache.LocalRegion;
 import org.apache.geode.internal.cache.PartitionedRegion;
 
 @RunWith(JUnitParamsRunner.class)
-public class InternalFunctionExecutionServiceTest {
+public class InternalFunctionExecutionServiceImplTest {
   private InternalFunctionExecutionServiceImpl functionExecutionService;
   private MeterRegistry meterRegistry;
 
