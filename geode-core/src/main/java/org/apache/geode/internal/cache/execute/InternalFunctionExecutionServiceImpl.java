@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import io.micrometer.core.instrument.MeterRegistry;
@@ -71,7 +72,7 @@ public class InternalFunctionExecutionServiceImpl
   private final Supplier<InternalDistributedSystem> distributedSystemSupplier;
 
   public InternalFunctionExecutionServiceImpl() {
-    this(() -> getInternalDistributedSystem());
+    this(InternalDistributedSystem::getConnectedInstance);
   }
 
   @VisibleForTesting
@@ -104,22 +105,22 @@ public class InternalFunctionExecutionServiceImpl
 
   @Override
   public Execution onMember(DistributedMember distributedMember) {
-    return onMember(distributedSystemSupplier.get(), distributedMember);
+    return onMember(checkIfNull(distributedSystemSupplier.get()), distributedMember);
   }
 
   @Override
   public Execution onMembers(String... groups) {
-    return onMembers(distributedSystemSupplier.get(), groups);
+    return onMembers(checkIfNull(distributedSystemSupplier.get()), groups);
   }
 
   @Override
   public Execution onMembers(Set<DistributedMember> distributedMembers) {
-    return onMembers(distributedSystemSupplier.get(), distributedMembers);
+    return onMembers(checkIfNull(distributedSystemSupplier.get()), distributedMembers);
   }
 
   @Override
   public Execution onMember(String... groups) {
-    return onMember(distributedSystemSupplier.get(), groups);
+    return onMember(checkIfNull(distributedSystemSupplier.get()), groups);
   }
 
   protected Pool findPool(String poolName) {
@@ -185,9 +186,7 @@ public class InternalFunctionExecutionServiceImpl
           "For Functions with isHA true, hasResult must also be true.");
     }
 
-    MeterRegistry meterRegistry = getMeterRegistry(distributedSystemSupplier.get());
-
-    if (meterRegistry != null) {
+    useMeterRegistry(meterRegistry -> {
       Timer.builder("geode.function.executions")
           .description("")
           .tag("function", function.getId())
@@ -199,7 +198,7 @@ public class InternalFunctionExecutionServiceImpl
           .tag("function", function.getId())
           .tag("succeeded", FALSE.toString())
           .register(meterRegistry);
-    }
+    });
 
     idToFunctionMap.put(function.getId(), function);
   }
@@ -211,6 +210,12 @@ public class InternalFunctionExecutionServiceImpl
           "functionId instance "));
     }
     idToFunctionMap.remove(functionId);
+
+    useMeterRegistry(meterRegistry -> meterRegistry
+        .find("geode.function.executions")
+        .tag("function", functionId)
+        .meters()
+        .forEach(meterRegistry::remove));
   }
 
   @Override
@@ -425,18 +430,28 @@ public class InternalFunctionExecutionServiceImpl
     return ((InternalRegion) region).hasServerProxy();
   }
 
-  private static InternalDistributedSystem getInternalDistributedSystem() {
-    InternalDistributedSystem system = InternalDistributedSystem.getConnectedInstance();
+  private void useMeterRegistry(Consumer<MeterRegistry> action) {
+    MeterRegistry meterRegistry = findMeterRegistry(distributedSystemSupplier.get());
+    if (meterRegistry != null) {
+      action.accept(meterRegistry);
+    }
+  }
+
+  private static InternalDistributedSystem checkIfNull(InternalDistributedSystem system) {
     if (system == null) {
       throw new DistributedSystemDisconnectedException(
           "This connection to a distributed system has been disconnected.");
     }
+
     return system;
   }
 
-  private static MeterRegistry getMeterRegistry(
-      InternalDistributedSystem internalDistributedSystem) {
-    InternalCache internalCache = internalDistributedSystem.getCache();
+  private static MeterRegistry findMeterRegistry(InternalDistributedSystem system) {
+    if (system == null) {
+      return null;
+    }
+
+    InternalCache internalCache = system.getCache();
 
     return internalCache == null
         ? null
