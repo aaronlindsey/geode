@@ -48,15 +48,13 @@ public class TimingFunction<T> implements Function<T>, AutoCloseable {
     this.nanoClock = nanoClock;
 
     successTimer = Timer.builder("geode.function.executions")
-        // TODO: ALINDSEY: Add description.
-        .description("")
+        .description("Count and total time of successful function executions")
         .tag("function", innerFunction.getId())
         .tag("succeeded", TRUE.toString())
         .register(meterRegistry);
 
     failureTimer = Timer.builder("geode.function.executions")
-        // TODO: ALINDSEY: Add description.
-        .description("")
+        .description("Count and total time of failed function executions")
         .tag("function", innerFunction.getId())
         .tag("succeeded", FALSE.toString())
         .register(meterRegistry);

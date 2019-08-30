@@ -74,7 +74,7 @@ public class TimingFunctionTest {
   }
 
   @Test
-  public void registersSuccessTimer() {
+  public void constructor_registersSuccessTimer() {
     new TimingFunction<>(innerFunction, meterRegistry);
 
     assertThat(successTimer())
@@ -84,13 +84,31 @@ public class TimingFunctionTest {
   }
 
   @Test
-  public void registersFailureTimer() {
+  public void constructor_registersFailureTimer() {
     new TimingFunction<>(innerFunction, meterRegistry);
 
     assertThat(failureTimer())
         .as("geode.function.executions timer with tags function=%s, succeeded=false",
             INNER_FUNCTION_ID)
         .isNotNull();
+  }
+
+  @Test
+  public void constructor_setsDescriptionForSuccessTimer() {
+    new TimingFunction<>(innerFunction, meterRegistry);
+
+    assertThat(successTimer().getId().getDescription())
+        .as("success timer description")
+        .isEqualTo("Count and total time of successful function executions");
+  }
+
+  @Test
+  public void constructor_setsDescriptionForFailureTimer() {
+    new TimingFunction<>(innerFunction, meterRegistry);
+
+    assertThat(failureTimer().getId().getDescription())
+        .as("failure timer description")
+        .isEqualTo("Count and total time of failed function executions");
   }
 
   @Test
