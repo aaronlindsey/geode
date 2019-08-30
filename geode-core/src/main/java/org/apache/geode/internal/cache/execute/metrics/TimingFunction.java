@@ -18,10 +18,13 @@ import static java.lang.Boolean.FALSE;
 import static java.lang.Boolean.TRUE;
 
 import java.util.Collection;
+import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 
+import org.apache.geode.annotations.VisibleForTesting;
 import org.apache.geode.cache.execute.Function;
 import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.security.ResourcePermission;
@@ -30,20 +33,29 @@ public class TimingFunction<T> implements Function<T>, AutoCloseable {
 
   private final Function<T> innerFunction;
   private final MeterRegistry meterRegistry;
+  private final LongSupplier nanoClock;
   private final Timer successTimer;
   private final Timer failureTimer;
 
   public TimingFunction(Function<T> innerFunction, MeterRegistry meterRegistry) {
+    this(innerFunction, meterRegistry, System::nanoTime);
+  }
+
+  @VisibleForTesting
+  TimingFunction(Function<T> innerFunction, MeterRegistry meterRegistry, LongSupplier nanoClock) {
     this.innerFunction = innerFunction;
     this.meterRegistry = meterRegistry;
+    this.nanoClock = nanoClock;
 
     successTimer = Timer.builder("geode.function.executions")
+        // TODO: ALINDSEY: Add description.
         .description("")
         .tag("function", innerFunction.getId())
         .tag("succeeded", TRUE.toString())
         .register(meterRegistry);
 
     failureTimer = Timer.builder("geode.function.executions")
+        // TODO: ALINDSEY: Add description.
         .description("")
         .tag("function", innerFunction.getId())
         .tag("succeeded", FALSE.toString())
@@ -52,13 +64,14 @@ public class TimingFunction<T> implements Function<T>, AutoCloseable {
 
   @Override
   public void execute(FunctionContext<T> context) {
-    // long startTime = System.nanoTime();
-    // try {
-    // innerFunction.execute(context);
-    // successTimer.record(System.nanoTime() - startTime, TimeUnit.NANOSECONDS);
-    // } catch (Throwable ignored) {
-    // failureTimer.record(System.nanoTime() - startTime, TimeUnit.NANOSECONDS);
-    // }
+    long startTime = nanoClock.getAsLong();
+    try {
+      innerFunction.execute(context);
+      successTimer.record(nanoClock.getAsLong() - startTime, TimeUnit.NANOSECONDS);
+    } catch (Error | RuntimeException e) {
+      failureTimer.record(nanoClock.getAsLong() - startTime, TimeUnit.NANOSECONDS);
+      throw e;
+    }
   }
 
   @Override
@@ -93,10 +106,7 @@ public class TimingFunction<T> implements Function<T>, AutoCloseable {
 
   @Override
   public void close() {
-    meterRegistry
-        .find("geode.function.executions")
-        .tag("function", getId())
-        .meters()
-        .forEach(meterRegistry::remove);
+    meterRegistry.remove(successTimer);
+    meterRegistry.remove(failureTimer);
   }
 }

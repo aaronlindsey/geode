@@ -15,15 +15,20 @@
 package org.apache.geode.internal.cache.execute.metrics;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -38,6 +43,7 @@ import org.mockito.junit.MockitoRule;
 import org.mockito.quality.Strictness;
 
 import org.apache.geode.cache.execute.Function;
+import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.security.ResourcePermission;
 
 public class TimingFunctionTest {
@@ -49,6 +55,9 @@ public class TimingFunctionTest {
 
   @Mock
   private Function<Void> innerFunction;
+
+  @Mock
+  private FunctionContext<Void> functionContext;
 
   private MeterRegistry meterRegistry;
 
@@ -68,13 +77,7 @@ public class TimingFunctionTest {
   public void registersSuccessTimer() {
     new TimingFunction<>(innerFunction, meterRegistry);
 
-    Timer timer = meterRegistry
-        .find("geode.function.executions")
-        .tag("function", INNER_FUNCTION_ID)
-        .tag("succeeded", "true")
-        .timer();
-
-    assertThat(timer)
+    assertThat(successTimer())
         .as("geode.function.executions timer with tags function=%s, succeeded=true",
             INNER_FUNCTION_ID)
         .isNotNull();
@@ -84,13 +87,7 @@ public class TimingFunctionTest {
   public void registersFailureTimer() {
     new TimingFunction<>(innerFunction, meterRegistry);
 
-    Timer timer = meterRegistry
-        .find("geode.function.executions")
-        .tag("function", INNER_FUNCTION_ID)
-        .tag("succeeded", "false")
-        .timer();
-
-    assertThat(timer)
+    assertThat(failureTimer())
         .as("geode.function.executions timer with tags function=%s, succeeded=false",
             INNER_FUNCTION_ID)
         .isNotNull();
@@ -102,13 +99,7 @@ public class TimingFunctionTest {
 
     timingFunction.close();
 
-    Timer timer = meterRegistry
-        .find("geode.function.executions")
-        .tag("function", INNER_FUNCTION_ID)
-        .tag("succeeded", "true")
-        .timer();
-
-    assertThat(timer)
+    assertThat(successTimer())
         .as("geode.function.executions timer with tags function=%s, succeeded=true",
             INNER_FUNCTION_ID)
         .isNull();
@@ -120,16 +111,141 @@ public class TimingFunctionTest {
 
     timingFunction.close();
 
-    Timer timer = meterRegistry
-        .find("geode.function.executions")
-        .tag("function", INNER_FUNCTION_ID)
-        .tag("succeeded", "false")
-        .timer();
-
-    assertThat(timer)
+    assertThat(failureTimer())
         .as("geode.function.executions timer with tags function=%s, succeeded=false",
             INNER_FUNCTION_ID)
         .isNull();
+  }
+
+  @Test
+  public void execute_executesInnerFunction() {
+    TimingFunction<Void> timingFunction = new TimingFunction<>(innerFunction, meterRegistry);
+
+    timingFunction.execute(functionContext);
+
+    verify(innerFunction).execute(same(functionContext));
+  }
+
+  @Test
+  public void execute_succeeded_incrementsSuccessTimerCount() {
+    TimingFunction<Void> timingFunction = new TimingFunction<>(innerFunction, meterRegistry);
+
+    timingFunction.execute(functionContext);
+
+    assertThat(successTimer().count())
+        .as("success timer count")
+        .isEqualTo(1);
+  }
+
+  @Test
+  public void execute_succeeded_doesNotIncrementFailureTimerCount() {
+    TimingFunction<Void> timingFunction = new TimingFunction<>(innerFunction, meterRegistry);
+
+    timingFunction.execute(functionContext);
+
+    assertThat(failureTimer().count())
+        .as("failure timer count")
+        .isEqualTo(0);
+  }
+
+  @Test
+  public void execute_rethrowsRuntimeExceptionFromInnerFunction() {
+    RuntimeException runtimeException = new RuntimeException("test");
+    doThrow(runtimeException).when(innerFunction).execute(any());
+    TimingFunction<Void> timingFunction = new TimingFunction<>(innerFunction, meterRegistry);
+
+    Throwable thrown = catchThrowable(() -> timingFunction.execute(functionContext));
+
+    assertThat(thrown).isSameAs(runtimeException);
+  }
+
+  @Test
+  public void execute_rethrowsErrorFromInnerFunction() {
+    Error error = new Error("test");
+    doThrow(error).when(innerFunction).execute(any());
+    TimingFunction<Void> timingFunction = new TimingFunction<>(innerFunction, meterRegistry);
+
+    Throwable thrown = catchThrowable(() -> timingFunction.execute(functionContext));
+
+    assertThat(thrown).isSameAs(error);
+  }
+
+  @Test
+  public void execute_failed_incrementsFailureTimerCount() {
+    doThrow(new RuntimeException("test")).when(innerFunction).execute(any());
+    TimingFunction<Void> timingFunction = new TimingFunction<>(innerFunction, meterRegistry);
+
+    catchThrowable(() -> timingFunction.execute(functionContext));
+
+    assertThat(failureTimer().count())
+        .as("failure timer count")
+        .isEqualTo(1);
+  }
+
+  @Test
+  public void execute_failed_doesNotIncrementSuccessTimerCount() {
+    doThrow(new RuntimeException("test")).when(innerFunction).execute(any());
+    TimingFunction<Void> timingFunction = new TimingFunction<>(innerFunction, meterRegistry);
+
+    catchThrowable(() -> timingFunction.execute(functionContext));
+
+    assertThat(successTimer().count())
+        .as("success timer count")
+        .isEqualTo(0);
+  }
+
+  @Test
+  public void execute_succeeded_incrementsSuccessTimerTotalTime() {
+    LongSupplier clock = mock(LongSupplier.class);
+    when(clock.getAsLong()).thenReturn(0L, 42L);
+    TimingFunction<Void> timingFunction = new TimingFunction<>(innerFunction, meterRegistry, clock);
+
+    timingFunction.execute(functionContext);
+
+    assertThat(successTimer().totalTime(TimeUnit.NANOSECONDS))
+        .as("success timer total time")
+        .isEqualTo(42);
+  }
+
+  @Test
+  public void execute_succeeded_doesNotIncrementFailureTimerTotalTime() {
+    LongSupplier clock = mock(LongSupplier.class);
+    when(clock.getAsLong()).thenReturn(0L, 42L);
+    TimingFunction<Void> timingFunction = new TimingFunction<>(innerFunction, meterRegistry, clock);
+
+    timingFunction.execute(functionContext);
+
+    assertThat(failureTimer().totalTime(TimeUnit.NANOSECONDS))
+        .as("failure timer total time")
+        .isEqualTo(0);
+  }
+
+  @Test
+  public void execute_failed_incrementsFailureTimerTotalTime() {
+    LongSupplier clock = mock(LongSupplier.class);
+    when(clock.getAsLong()).thenReturn(0L, 42L);
+    doThrow(new RuntimeException("test")).when(innerFunction).execute(any());
+    TimingFunction<Void> timingFunction = new TimingFunction<>(innerFunction, meterRegistry, clock);
+
+    catchThrowable(() -> timingFunction.execute(functionContext));
+
+    assertThat(failureTimer().totalTime(TimeUnit.NANOSECONDS))
+        .as("failure timer total time")
+        .isEqualTo(42);
+  }
+
+  @Test
+  public void execute_failed_doesNotIncrementSuccessTimerTotalTime() {
+    LongSupplier clock = mock(LongSupplier.class);
+    when(clock.getAsLong()).thenReturn(0L, 42L);
+    doThrow(new RuntimeException("test")).when(innerFunction).execute(any());
+    TimingFunction<Void> timingFunction = new TimingFunction<>(innerFunction, meterRegistry, clock);
+
+    catchThrowable(() -> timingFunction.execute(functionContext));
+
+    assertThat(successTimer().totalTime(TimeUnit.NANOSECONDS))
+        .as("success timer total time")
+        .isEqualTo(0);
   }
 
   @Test
@@ -200,5 +316,21 @@ public class TimingFunctionTest {
 
     assertThat(value).containsExactly(resourcePermission);
     verify(innerFunction).getRequiredPermissions(eq("foo"), eq(new String[] {"bar"}));
+  }
+
+  private Timer successTimer() {
+    return functionExecutionsTimer(true);
+  }
+
+  private Timer failureTimer() {
+    return functionExecutionsTimer(false);
+  }
+
+  private Timer functionExecutionsTimer(boolean succeededTagValue) {
+    return meterRegistry
+        .find("geode.function.executions")
+        .tag("function", INNER_FUNCTION_ID)
+        .tag("succeeded", String.valueOf(succeededTagValue))
+        .timer();
   }
 }
