@@ -15,25 +15,19 @@
 package org.apache.geode.internal.cache.execute;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.util.Collection;
+import java.util.function.UnaryOperator;
 
-import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-import junitparams.JUnitParamsRunner;
-import junitparams.Parameters;
-import junitparams.naming.TestCaseName;
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.RegionAttributes;
@@ -46,15 +40,13 @@ import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.LocalRegion;
 import org.apache.geode.internal.cache.PartitionedRegion;
 
-@RunWith(JUnitParamsRunner.class)
 public class InternalFunctionExecutionServiceImplTest {
 
   private InternalFunctionExecutionServiceImpl functionExecutionService;
-  private MeterRegistry meterRegistry;
 
   @Before
   public void setUp() {
-    meterRegistry = new SimpleMeterRegistry();
+    MeterRegistry meterRegistry = new SimpleMeterRegistry();
     InternalDistributedSystem internalDistributedSystem = mock(InternalDistributedSystem.class);
     InternalCache internalCache = mock(InternalCache.class);
 
@@ -62,7 +54,8 @@ public class InternalFunctionExecutionServiceImplTest {
     when(internalCache.getMeterRegistry()).thenReturn(meterRegistry);
 
     functionExecutionService =
-        spy(new InternalFunctionExecutionServiceImpl(() -> internalDistributedSystem));
+        spy(new InternalFunctionExecutionServiceImpl(() -> internalDistributedSystem,
+            UnaryOperator.identity()));
   }
 
   @Test
@@ -128,84 +121,61 @@ public class InternalFunctionExecutionServiceImplTest {
   }
 
   @Test
-  public void registerFunction_cacheIsNull_doesNotThrow() {
-    InternalDistributedSystem internalDistributedSystem = mock(InternalDistributedSystem.class);
-    Function function = functionWithId("foo");
-    when(internalDistributedSystem.getCache()).thenReturn(null);
-    FunctionExecutionService service =
-        new InternalFunctionExecutionServiceImpl(() -> internalDistributedSystem);
+  public void registerFunction_registersInstrumentingFunction() {
+    Function instrumentingFunction = functionWithId("foo");
+    functionExecutionService =
+        new InternalFunctionExecutionServiceImpl(() -> mock(InternalDistributedSystem.class),
+            f1 -> instrumentingFunction);
 
-    assertThatCode(() -> service.registerFunction(function))
-        .doesNotThrowAnyException();
-  }
-
-  @Test
-  public void registerFunction_meterRegistryIsNull_doesNotThrow() {
-    InternalDistributedSystem internalDistributedSystem = mock(InternalDistributedSystem.class);
-    InternalCache internalCache = mock(InternalCache.class);
-    Function function = functionWithId("foo");
-    when(internalDistributedSystem.getCache()).thenReturn(internalCache);
-    when(internalCache.getMeterRegistry()).thenReturn(null);
-    FunctionExecutionService service =
-        new InternalFunctionExecutionServiceImpl(() -> internalDistributedSystem);
-
-    assertThatCode(() -> service.registerFunction(function))
-        .doesNotThrowAnyException();
-  }
-
-  @Test
-  @Parameters({"true", "false"})
-  @TestCaseName("{method}(succeededTagValue={0})")
-  public void registerFunction_registersFunctionExecutionsTimer(boolean succeededTagValue) {
     functionExecutionService.registerFunction(functionWithId("foo"));
 
-    Timer timer = meterRegistry
-        .find("geode.function.executions")
-        .tag("function", "foo")
-        .tag("succeeded", String.valueOf(succeededTagValue))
-        .timer();
-
-    assertThat(timer)
-        .as("geode.function.executions timer with tags function=foo, succeeded=%s",
-            succeededTagValue)
-        .isNotNull();
+    Function registeredFunction = functionExecutionService.getFunction("foo");
+    assertThat(registeredFunction)
+        .isSameAs(instrumentingFunction);
   }
 
   @Test
-  public void unregisterFunction_unregistersFunctionExecutionsTimer() {
+  public void unregisterFunction_closesInstrumentingFunction() throws Exception {
+    CloseableFunction instrumentingFunction = functionWithId("foo");
+    functionExecutionService =
+        new InternalFunctionExecutionServiceImpl(() -> mock(InternalDistributedSystem.class),
+            f -> instrumentingFunction);
     functionExecutionService.registerFunction(functionWithId("foo"));
 
     functionExecutionService.unregisterFunction("foo");
 
-    Timer timer = meterRegistry
-        .find("geode.function.executions")
-        .tag("function", "foo")
-        .timer();
-
-    assertThat(timer)
-        .as("geode.function.executions timer with tag function=foo")
-        .isNull();
+    verify(instrumentingFunction).close();
   }
 
   @Test
-  public void unregisterAllFunctions_unregistersAllFunctionExecutionsTimers() {
+  @SuppressWarnings("unchecked")
+  public void unregisterAllFunctions_closesAllInstrumentingFunction() throws Exception {
+    CloseableFunction instrumentingFunction1 = functionWithId("foo");
+    CloseableFunction instrumentingFunction2 = functionWithId("bar");
+
+    UnaryOperator<Function<?>> instrumentor =
+        (UnaryOperator<Function<?>>) mock(UnaryOperator.class);
+    when(instrumentor.apply(any())).thenReturn(instrumentingFunction1, instrumentingFunction2);
+
+    functionExecutionService =
+        new InternalFunctionExecutionServiceImpl(() -> mock(InternalDistributedSystem.class),
+            instrumentor);
     functionExecutionService.registerFunction(functionWithId("foo"));
     functionExecutionService.registerFunction(functionWithId("bar"));
 
     functionExecutionService.unregisterAllFunctions();
 
-    Collection<Meter> meters = meterRegistry
-        .find("geode.function.executions")
-        .meters();
-
-    assertThat(meters)
-        .as("Collection of all geode.function.executions timers")
-        .isEmpty();
+    verify(instrumentingFunction1).close();
+    verify(instrumentingFunction2).close();
   }
 
-  private Function functionWithId(String id) {
-    Function function = mock(Function.class);
+  private CloseableFunction functionWithId(String id) {
+    CloseableFunction function = mock(CloseableFunction.class);
     when(function.getId()).thenReturn(id);
     return function;
+  }
+
+  private interface CloseableFunction extends Function, AutoCloseable {
+
   }
 }

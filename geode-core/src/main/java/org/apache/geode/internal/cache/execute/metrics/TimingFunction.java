@@ -29,7 +29,7 @@ import org.apache.geode.cache.execute.Function;
 import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.security.ResourcePermission;
 
-public class TimingFunction<T> implements Function<T>, AutoCloseable {
+class TimingFunction<T> implements Function<T>, AutoCloseable {
 
   private final Function<T> innerFunction;
   private final MeterRegistry meterRegistry;
@@ -37,7 +37,7 @@ public class TimingFunction<T> implements Function<T>, AutoCloseable {
   private final Timer successTimer;
   private final Timer failureTimer;
 
-  public TimingFunction(Function<T> innerFunction, MeterRegistry meterRegistry) {
+  TimingFunction(Function<T> innerFunction, MeterRegistry meterRegistry) {
     this(innerFunction, meterRegistry, System::nanoTime);
   }
 
