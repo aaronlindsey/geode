@@ -15,13 +15,16 @@
 package org.apache.geode.metrics;
 
 
-import static java.lang.String.valueOf;
+import static java.lang.Boolean.FALSE;
+import static java.lang.Boolean.TRUE;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 
 import io.micrometer.core.instrument.Timer;
@@ -43,6 +46,7 @@ import org.apache.geode.cache.client.PoolManager;
 import org.apache.geode.cache.execute.Execution;
 import org.apache.geode.cache.execute.Function;
 import org.apache.geode.cache.execute.FunctionContext;
+import org.apache.geode.cache.execute.FunctionException;
 import org.apache.geode.cache.execute.FunctionService;
 import org.apache.geode.internal.AvailablePortHelper;
 import org.apache.geode.rules.ServiceJarRule;
@@ -143,7 +147,8 @@ public class FunctionExecutionsTimerTest {
     clientCache = new ClientCacheFactory().addPoolLocator("localhost", locatorPort).create();
 
     ExecutionsTimerValues result =
-        getExecutionsTimerValues(FunctionToTime.ID, valueOf(succeededTagValue));
+        getExecutionsTimerValues(FunctionToTime.ID, String.valueOf(succeededTagValue));
+
 
     assertThat(result.count)
         .as("Function execution count")
@@ -173,27 +178,14 @@ public class FunctionExecutionsTimerTest {
   }
 
   @Test
-  public void functionExists_successfulExecution_expectOneExecution() {
+  public void meterRecordsCountAndTotalTimeIfFunctionSucceeds() {
     clientCache = new ClientCacheFactory().addPoolLocator("localhost", locatorPort).create();
 
-    @SuppressWarnings("unchecked")
-    Execution<String[], String, List<String>> execution =
-        (Execution<String[], String, List<String>>) FunctionService.onServer(server1Pool);
+    Duration functionDuration = Duration.ofSeconds(5);
+    executeFunctionThatSucceeds(FunctionToTime.ID, functionDuration);
 
-    long timeToSleep = 5000;
-    boolean successful = true;
-
-    List<String> functionToTimeResult = execution
-        .setArguments(new String[] {valueOf(timeToSleep), valueOf(successful)})
-        .execute(FunctionToTime.ID)
-        .getResult();
-
-    assertThat(functionToTimeResult)
-        .as("FunctionToTime result")
-        .containsExactly(FunctionToTime.OK_RESULT);
-
-    ExecutionsTimerValues result =
-        getExecutionsTimerValues(FunctionToTime.ID, valueOf(successful));
+    String succeededTagValue = TRUE.toString();
+    ExecutionsTimerValues result = getExecutionsTimerValues(FunctionToTime.ID, succeededTagValue);
 
     assertThat(result.count)
         .as("Function execution count")
@@ -201,7 +193,18 @@ public class FunctionExecutionsTimerTest {
 
     assertThat(result.totalTime)
         .as("Function execution total time")
-        .isGreaterThan(NANOSECONDS.toMillis(timeToSleep));
+        .isGreaterThan(functionDuration.toNanos());
+  }
+
+  private void executeFunctionThatSucceeds(String functionId, Duration duration) {
+    @SuppressWarnings("unchecked")
+    Execution<String[], String, List<String>> execution =
+        (Execution<String[], String, List<String>>) FunctionService.onServer(server1Pool);
+
+    execution
+        .setArguments(new String[]{String.valueOf(duration.toMillis()), TRUE.toString()})
+        .execute(functionId)
+        .getResult();
   }
 
   private ExecutionsTimerValues getExecutionsTimerValues(String... args) {
@@ -256,7 +259,7 @@ public class FunctionExecutionsTimerTest {
       if (successful) {
         context.getResultSender().lastResult(OK_RESULT);
       } else {
-        context.getResultSender().sendException(new Exception(FAIL_RESULT));
+        throw new FunctionException(FAIL_RESULT);
       }
     }
 
