@@ -120,7 +120,7 @@ public class FunctionExecutionsTimerTest {
     gfshRule.execute(connectToLocatorCommand, deployFunctionToTimeCommand,
         deployGetExecutionsTimerFunctionCommand);
 
-    clientCache = new ClientCacheFactory().addPoolLocator("localhost", locatorPort).create();
+    clientCache = new ClientCacheFactory().create();
 
     server1Pool = PoolManager.createFactory()
         .addServer("localhost", serverPort1)
@@ -144,11 +144,8 @@ public class FunctionExecutionsTimerTest {
   @Parameters({"true", "false"})
   @TestCaseName("{method}(succeededTagValue={0})")
   public void functionExists_notExecuted_expectZeroExecutions(boolean succeededTagValue) {
-    clientCache = new ClientCacheFactory().addPoolLocator("localhost", locatorPort).create();
-
     ExecutionsTimerValues result =
         getExecutionsTimerValues(FunctionToTime.ID, String.valueOf(succeededTagValue));
-
 
     assertThat(result.count)
         .as("Function execution count")
@@ -168,8 +165,6 @@ public class FunctionExecutionsTimerTest {
     gfshRule.execute(connectToLocatorCommand, undeployFunctionToTimeCommand, stopServer1Command,
         startServer1Command);
 
-    clientCache = new ClientCacheFactory().addPoolLocator("localhost", locatorPort).create();
-
     ExecutionsTimerValues result = getExecutionsTimerValues(FunctionToTime.ID);
 
     assertThat(result)
@@ -179,8 +174,6 @@ public class FunctionExecutionsTimerTest {
 
   @Test
   public void meterRecordsCountAndTotalTimeIfFunctionSucceeds() {
-    clientCache = new ClientCacheFactory().addPoolLocator("localhost", locatorPort).create();
-
     Duration functionDuration = Duration.ofSeconds(5);
     executeFunctionThatSucceeds(FunctionToTime.ID, functionDuration);
 
