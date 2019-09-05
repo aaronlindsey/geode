@@ -19,7 +19,7 @@ import static java.lang.Boolean.FALSE;
 import static java.lang.Boolean.TRUE;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import java.io.File;
 import java.io.IOException;
@@ -174,10 +174,27 @@ public class FunctionExecutionsTimerTest {
 
   @Test
   public void meterRecordsCountAndTotalTimeIfFunctionSucceeds() {
-    Duration functionDuration = Duration.ofSeconds(5);
+    Duration functionDuration = Duration.ofSeconds(1);
     executeFunctionThatSucceeds(FunctionToTime.ID, functionDuration);
 
     String succeededTagValue = TRUE.toString();
+    ExecutionsTimerValues result = getExecutionsTimerValues(FunctionToTime.ID, succeededTagValue);
+
+    assertThat(result.count)
+        .as("Function execution count")
+        .isEqualTo(1);
+
+    assertThat(result.totalTime)
+        .as("Function execution total time")
+        .isGreaterThan(functionDuration.toNanos());
+  }
+
+  @Test
+  public void meterRecordsCountAndTotalTimeIfFunctionThrows() {
+    Duration functionDuration = Duration.ofSeconds(1);
+    executeFunctionThatThrows(FunctionToTime.ID, functionDuration);
+
+    String succeededTagValue = FALSE.toString();
     ExecutionsTimerValues result = getExecutionsTimerValues(FunctionToTime.ID, succeededTagValue);
 
     assertThat(result.count)
@@ -194,10 +211,29 @@ public class FunctionExecutionsTimerTest {
     Execution<String[], String, List<String>> execution =
         (Execution<String[], String, List<String>>) FunctionService.onServer(server1Pool);
 
-    execution
-        .setArguments(new String[]{String.valueOf(duration.toMillis()), TRUE.toString()})
+    Throwable thrown = catchThrowable(() -> execution
+        .setArguments(new String[] {String.valueOf(duration.toMillis()), TRUE.toString()})
         .execute(functionId)
-        .getResult();
+        .getResult());
+
+    assertThat(thrown)
+        .as("Exception from function expected to succeed")
+        .isNull();
+  }
+
+  private void executeFunctionThatThrows(String functionId, Duration duration) {
+    @SuppressWarnings("unchecked")
+    Execution<String[], String, List<String>> execution =
+        (Execution<String[], String, List<String>>) FunctionService.onServer(server1Pool);
+
+    Throwable thrown = catchThrowable(() -> execution
+        .setArguments(new String[] {String.valueOf(duration.toMillis()), FALSE.toString()})
+        .execute(functionId)
+        .getResult());
+
+    assertThat(thrown)
+        .withFailMessage("Expected function to throw but it did not")
+        .isNotNull();
   }
 
   private ExecutionsTimerValues getExecutionsTimerValues(String... args) {
@@ -241,8 +277,8 @@ public class FunctionExecutionsTimerTest {
     @Override
     public void execute(FunctionContext<String[]> context) {
       String[] arguments = context.getArguments();
-      long timeToSleep = Long.valueOf(arguments[0]);
-      boolean successful = Boolean.valueOf(arguments[1]);
+      long timeToSleep = Long.parseLong(arguments[0]);
+      boolean successful = Boolean.parseBoolean(arguments[1]);
 
       try {
         Thread.sleep(timeToSleep);
