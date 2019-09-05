@@ -58,14 +58,14 @@ public class FunctionExecutionsTimerTest {
 
   private static final String FUNCTION_TO_TIME_JAR = "function-to-time.jar";
 
+  private int locatorPort;
+  private int serverPort1;
+  private int serverPort2;
+  private File server1folder;
+  private File server2folder;
   private Path serviceJarPath;
-  private String locatorString;
-  private String connectToLocatorCommand;
   private ClientCache clientCache;
   private Pool server1Pool;
-  private int serverPort1;
-  private File folderForServer1;
-  private int locatorPort;
 
   @Rule
   public GfshRule gfshRule = new GfshRule();
@@ -77,29 +77,26 @@ public class FunctionExecutionsTimerTest {
   public ServiceJarRule serviceJarRule = new ServiceJarRule();
 
   @Before
-  public void before() throws IOException {
-    serviceJarPath = serviceJarRule.createJarFor("metrics-publishing-service.jar",
-        MetricsPublishingService.class, SimpleMetricsPublishingService.class);
-
+  public void setUp() throws IOException {
     int[] availablePorts = AvailablePortHelper.getRandomAvailableTCPPorts(3);
 
     locatorPort = availablePorts[0];
     serverPort1 = availablePorts[1];
-    int serverPort2 = availablePorts[2];
+    serverPort2 = availablePorts[2];
 
-    locatorString = "localhost[" + locatorPort + "]";
+    server1folder = temporaryFolder.newFolder("server1");
+    server2folder = temporaryFolder.newFolder("server2");
 
-    File folderForLocator = temporaryFolder.newFolder("locator");
-    folderForServer1 = temporaryFolder.newFolder("server1");
-    File folderForServer2 = temporaryFolder.newFolder("server2");
+    serviceJarPath = serviceJarRule.createJarFor("metrics-publishing-service.jar",
+        MetricsPublishingService.class, SimpleMetricsPublishingService.class);
 
     String startLocatorCommand = String.join(" ",
         "start locator",
         "--name=" + "locator",
-        "--dir=" + folderForLocator.getAbsolutePath(),
+        "--dir=" + temporaryFolder.newFolder("locator").getAbsolutePath(),
         "--port=" + locatorPort);
 
-    String startServer1Command = startServerCommand("server1", serverPort1, folderForServer1);
+    String startServer1Command = startServerCommand("server1", serverPort1, server1folder);
 
     gfshRule.execute(startLocatorCommand, startServer1Command);
 
@@ -112,12 +109,11 @@ public class FunctionExecutionsTimerTest {
     new ClassBuilder().writeJarFromClass(GetExecutionsTimerFunction.class,
         getExecutionsTimerFunctionJarPath.toFile());
 
-    connectToLocatorCommand = "connect --locator=" + locatorString;
     String deployFunctionToTimeCommand = "deploy --jar=" + functionToTimeJarPath.toAbsolutePath();
     String deployGetExecutionsTimerFunctionCommand =
         "deploy --jar=" + getExecutionsTimerFunctionJarPath.toAbsolutePath();
 
-    gfshRule.execute(connectToLocatorCommand, deployFunctionToTimeCommand,
+    gfshRule.execute(connectToLocatorCommand(), deployFunctionToTimeCommand,
         deployGetExecutionsTimerFunctionCommand);
 
     clientCache = new ClientCacheFactory().create();
@@ -128,16 +124,12 @@ public class FunctionExecutionsTimerTest {
   }
 
   @After
-  public void stopMembers() {
-    if (clientCache != null) {
-      clientCache.close();
-    }
+  public void tearDown() {
+    clientCache.close();
     server1Pool.destroy();
 
-    String shutdownCommand = String.join(" ",
-        "shutdown",
-        "--include-locators=true");
-    gfshRule.execute(connectToLocatorCommand, shutdownCommand);
+    String shutdownCommand = "shutdown --include-locators=true";
+    gfshRule.execute(connectToLocatorCommand(), shutdownCommand);
   }
 
   @Test
@@ -159,10 +151,10 @@ public class FunctionExecutionsTimerTest {
   @Test
   public void functionExists_undeployJar_expectMetersRemoved() {
     String undeployFunctionToTimeCommand = "undeploy --jar=" + FUNCTION_TO_TIME_JAR;
-    String stopServer1Command = "stop server --dir=" + folderForServer1.getAbsolutePath();
-    String startServer1Command = startServerCommand("server1", serverPort1, folderForServer1);
+    String stopServer1Command = "stop server --dir=" + server1folder.getAbsolutePath();
+    String startServer1Command = startServerCommand("server1", serverPort1, server1folder);
 
-    gfshRule.execute(connectToLocatorCommand, undeployFunctionToTimeCommand, stopServer1Command,
+    gfshRule.execute(connectToLocatorCommand(), undeployFunctionToTimeCommand, stopServer1Command,
         startServer1Command);
 
     ExecutionsTimerValues result = getExecutionsTimerValues(FunctionToTime.ID);
@@ -258,14 +250,18 @@ public class FunctionExecutionsTimerTest {
     return new ExecutionsTimerValues(count, totalTime);
   }
 
-  private String startServerCommand(String serverName, int serverPort, File folderForServer) {
+  private String connectToLocatorCommand() {
+    return "connect --locator=localhost[" + locatorPort + "]";
+  }
+
+  private String startServerCommand(String serverName, int serverPort, File serverFolder) {
     return String.join(" ",
         "start server",
         "--name=" + serverName,
         "--groups=" + serverName,
-        "--dir=" + folderForServer.getAbsolutePath(),
+        "--dir=" + serverFolder.getAbsolutePath(),
         "--server-port=" + serverPort,
-        "--locators=" + locatorString,
+        "--locators=localhost[" + locatorPort + "]",
         "--classpath=" + serviceJarPath);
   }
 
