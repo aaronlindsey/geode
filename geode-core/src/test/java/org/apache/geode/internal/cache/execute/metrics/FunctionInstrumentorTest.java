@@ -17,17 +17,18 @@ package org.apache.geode.internal.cache.execute.metrics;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
 
-import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.Test;
 
 import org.apache.geode.cache.execute.Function;
+import org.apache.geode.internal.InternalEntity;
 
 public class FunctionInstrumentorTest {
 
   @Test
-  public void instrument_meterRegistryNull_expectOriginalFunction() {
+  public void instrument_returnsOriginalFunction_ifMeterRegistryNull() {
     FunctionInstrumentor functionInstrumentor = new FunctionInstrumentor(() -> null);
     Function<?> originalFunction = mock(Function.class);
 
@@ -37,9 +38,20 @@ public class FunctionInstrumentorTest {
   }
 
   @Test
-  public void instrument_meterRegistryNotNull_expectTimingFunctionWithSameId() {
-    MeterRegistry meterRegistry = new SimpleMeterRegistry();
-    FunctionInstrumentor functionInstrumentor = new FunctionInstrumentor(() -> meterRegistry);
+  public void instrument_returnsOriginalFunction_ifFunctionImplementsInternalEntity() {
+    FunctionInstrumentor functionInstrumentor = new FunctionInstrumentor(SimpleMeterRegistry::new);
+    Function<?> originalFunction = mock(Function.class, withSettings().extraInterfaces(
+        InternalEntity.class));
+    when(originalFunction.getId()).thenReturn("foo");
+
+    Function<?> value = functionInstrumentor.instrument(originalFunction);
+
+    assertThat(value).isSameAs(originalFunction);
+  }
+
+  @Test
+  public void instrument_returnsTimingFunctionWithSameId() {
+    FunctionInstrumentor functionInstrumentor = new FunctionInstrumentor(SimpleMeterRegistry::new);
     Function<?> originalFunction = mock(Function.class);
     when(originalFunction.getId()).thenReturn("foo");
 

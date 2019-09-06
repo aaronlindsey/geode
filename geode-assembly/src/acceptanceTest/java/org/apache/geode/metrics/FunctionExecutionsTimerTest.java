@@ -358,7 +358,8 @@ public class FunctionExecutionsTimerTest {
         .collect(toList());
   }
 
-  private String startServerCommand(String serverName, int serverPort, File serverFolder, int locatorPort, Path serviceJarPath) {
+  private String startServerCommand(String serverName, int serverPort, File serverFolder,
+      int locatorPort, Path serviceJarPath) {
     return String.join(" ",
         "start server",
         "--name=" + serverName,
@@ -371,7 +372,8 @@ public class FunctionExecutionsTimerTest {
 
   private <T> String deployFunctionCommand(Class<? extends Function<T>> function)
       throws IOException {
-    Path jarPath = temporaryFolder.getRoot().toPath().resolve(function.getSimpleName() + ".jar").toAbsolutePath();
+    Path jarPath = temporaryFolder.getRoot().toPath().resolve(function.getSimpleName() + ".jar")
+        .toAbsolutePath();
 
     new ClassBuilder().writeJarFromClass(function, jarPath.toFile());
 

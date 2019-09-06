@@ -20,6 +20,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 
 import org.apache.geode.annotations.VisibleForTesting;
 import org.apache.geode.cache.execute.Function;
+import org.apache.geode.internal.InternalEntity;
 
 public class FunctionInstrumentor {
 
@@ -37,10 +38,10 @@ public class FunctionInstrumentor {
   public <T> Function<T> instrument(Function<T> function) {
     MeterRegistry meterRegistry = meterRegistrySupplier.get();
 
-    // TODO: ALINDSEY: Check if function is an internal function
+    if (meterRegistry == null || function instanceof InternalEntity) {
+      return function;
+    }
 
-    return meterRegistry == null
-        ? function
-        : new TimingFunction<>(function, meterRegistry);
+    return new TimingFunction<>(function, meterRegistry);
   }
 }
