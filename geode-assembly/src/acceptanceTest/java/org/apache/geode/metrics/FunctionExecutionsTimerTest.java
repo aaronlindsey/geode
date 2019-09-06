@@ -235,7 +235,37 @@ public class FunctionExecutionsTimerTest {
 
     assertThat(totalTime)
         .as("Total time of function executions across all servers")
-        .isBetween((double) functionDuration.toNanos(), (double) functionDuration.toNanos() * 2);
+        .isBetween((double) functionDuration.toNanos(), ((double) functionDuration.toNanos()) * 2);
+  }
+
+  @Test
+  public void mutlipleReplicateRegionExecutionsIncrementsMeters() {
+    Duration functionDuration = Duration.ofSeconds(1);
+    int numberOfExecutions = 10;
+
+    for (int i = 0; i < numberOfExecutions; i++) {
+      executeFunctionOnReplicateRegion(FunctionToTime.ID, functionDuration);
+    }
+
+    List<ExecutionsTimerValues> values = getTimerValuesFromAllServers(FunctionToTime.ID);
+
+    long totalCount = values.stream().map(x -> x.count).reduce(0L, Long::sum);
+    double totalTime = values.stream().map(x -> x.totalTime).reduce(0.0, Double::sum);
+
+    assertThat(values)
+        .as("Execution timer values for each server")
+        .hasSize(2);
+
+    assertThat(totalCount)
+        .as("Number of function executions across all servers")
+        .isEqualTo(numberOfExecutions);
+
+    double expectedMinimumTotalTime = ((double) functionDuration.toNanos()) * numberOfExecutions;
+    double expectedMaximumTotalTime = expectedMinimumTotalTime * 2;
+
+    assertThat(totalTime)
+        .as("Total time of function executions across all servers")
+        .isBetween(expectedMinimumTotalTime, expectedMaximumTotalTime);
   }
 
   private void executeFunctionThatSucceeds(String functionId, Duration duration) {
