@@ -17,7 +17,6 @@ package org.apache.geode.metrics;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.stream.Collectors.toList;
-import static org.apache.geode.test.compiler.ClassBuilder.writeJarFromClasses;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
@@ -43,6 +42,7 @@ import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.cache.execute.FunctionService;
 import org.apache.geode.internal.AvailablePortHelper;
 import org.apache.geode.rules.ServiceJarRule;
+import org.apache.geode.test.compiler.ClassBuilder;
 import org.apache.geode.test.junit.rules.gfsh.GfshRule;
 
 public class FunctionExecutionsTimerRegistrationTest {
@@ -50,6 +50,7 @@ public class FunctionExecutionsTimerRegistrationTest {
   private Path serverFolder;
   private ClientCache clientCache;
   private Pool serverPool;
+  private int jmxRmiPort;
 
   @Rule
   public GfshRule gfshRule = new GfshRule();
@@ -65,7 +66,7 @@ public class FunctionExecutionsTimerRegistrationTest {
     int[] ports = AvailablePortHelper.getRandomAvailableTCPPorts(2);
 
     int serverPort = ports[0];
-    int jmxRmiPort = ports[1];
+    jmxRmiPort = ports[1];
 
     serverFolder = temporaryFolder.newFolder("server").toPath().toAbsolutePath();
 
@@ -74,8 +75,8 @@ public class FunctionExecutionsTimerRegistrationTest {
 
     Path testHelpersJarPath =
         temporaryFolder.getRoot().toPath().resolve("test-helpers.jar").toAbsolutePath();
-    writeJarFromClasses(testHelpersJarPath.toFile(), GetFunctionExecutionTimerValues.class,
-        ExecutionsTimerValues.class);
+    new ClassBuilder().writeJarFromClasses(testHelpersJarPath.toFile(),
+        GetFunctionExecutionTimerValues.class, ExecutionsTimerValues.class);
 
     String startServerCommand = String.join(" ",
         "start server",
@@ -110,10 +111,35 @@ public class FunctionExecutionsTimerRegistrationTest {
   }
 
   @Test
-  public void noTimersExist_ifOnlyInternalFunctionsAreRegistered() {
+  public void noTimersRegistered_ifOnlyInternalFunctionsRegistered() {
     List<ExecutionsTimerValues> values = getExecutionsTimerValues();
 
     assertThat(values).isEmpty();
+  }
+
+  @Test
+  public void timersRegistered_ifFunctionDeployed() throws IOException {
+    deployFunction(UserDeployedFunction.class);
+
+    List<ExecutionsTimerValues> values = getExecutionsTimerValues();
+
+    assertThat(values)
+        .hasSize(2)
+        .allMatch(v -> v.functionId.equals(UserDeployedFunction.ID), "Has correct function ID")
+        .matches(v -> v.stream().anyMatch(t -> t.succeeded), "At least one succeeded timer")
+        .matches(v -> v.stream().anyMatch(t -> !t.succeeded), "At least one failure timer");
+  }
+
+  private <T> void deployFunction(Class<? extends Function<T>> functionClass) throws IOException {
+    Path functionJarPath = temporaryFolder.getRoot().toPath()
+        .resolve(functionClass.getSimpleName() + ".jar").toAbsolutePath();
+
+    new ClassBuilder().writeJarFromClasses(functionJarPath.toFile(), functionClass);
+
+    String connectCommand = "connect --jmx-manager=localhost[" + jmxRmiPort + "]";
+    String deployFunctionCommand = "deploy --jar=" + functionJarPath;
+
+    gfshRule.execute(connectCommand, deployFunctionCommand);
   }
 
   private List<ExecutionsTimerValues> getExecutionsTimerValues() {
@@ -132,8 +158,31 @@ public class FunctionExecutionsTimerRegistrationTest {
     return results.get(0);
   }
 
-  public static class GetFunctionExecutionTimerValues implements Function<Void> {
+  public static class UserDeployedFunction implements Function<Void> {
+    static final String ID = "UserDeployedFunction";
 
+    @Override
+    public void execute(FunctionContext<Void> context) {
+      // Nothing
+    }
+
+    @Override
+    public String getId() {
+      return ID;
+    }
+
+    @Override
+    public boolean hasResult() {
+      return false;
+    }
+
+    @Override
+    public boolean isHA() {
+      return false;
+    }
+  }
+
+  public static class GetFunctionExecutionTimerValues implements Function<Void> {
     static final String ID = "GetFunctionExecutionTimerValues";
 
     @Override

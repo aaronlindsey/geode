@@ -176,8 +176,7 @@ public class ClassBuilder implements Serializable {
     }
   }
 
-  // TODO: ALINDSEY: Un-duplicate this
-  public static void writeJarFromClasses(File jar, Class... types) throws IOException {
+  public void writeJarFromClasses(File jar, Class... types) throws IOException {
     try (JarOutputStream jarOutputStream = new JarOutputStream(new FileOutputStream(jar))) {
       for (Class type : types) {
         String className = type.getName();
