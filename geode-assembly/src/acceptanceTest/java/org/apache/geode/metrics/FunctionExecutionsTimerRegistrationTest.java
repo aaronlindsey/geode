@@ -47,10 +47,12 @@ import org.apache.geode.test.junit.rules.gfsh.GfshRule;
 
 public class FunctionExecutionsTimerRegistrationTest {
 
-  private Path serverFolder;
+  private int serverPort;
   private ClientCache clientCache;
   private Pool serverPool;
-  private int jmxRmiPort;
+  private String connectCommand;
+  private String startServerCommand;
+  private String stopServerCommand;
 
   @Rule
   public GfshRule gfshRule = new GfshRule();
@@ -65,10 +67,10 @@ public class FunctionExecutionsTimerRegistrationTest {
   public void setUp() throws IOException {
     int[] ports = AvailablePortHelper.getRandomAvailableTCPPorts(2);
 
-    int serverPort = ports[0];
-    jmxRmiPort = ports[1];
+    serverPort = ports[0];
+    int jmxRmiPort = ports[1];
 
-    serverFolder = temporaryFolder.newFolder("server").toPath().toAbsolutePath();
+    Path serverFolder = temporaryFolder.newFolder("server").toPath().toAbsolutePath();
 
     Path serviceJarPath = serviceJarRule.createJarFor("services.jar",
         MetricsPublishingService.class, SimpleMetricsPublishingService.class);
@@ -78,7 +80,7 @@ public class FunctionExecutionsTimerRegistrationTest {
     new ClassBuilder().writeJarFromClasses(testHelpersJarPath.toFile(),
         GetFunctionExecutionTimerValues.class, ExecutionsTimerValues.class);
 
-    String startServerCommand = String.join(" ",
+    startServerCommand = String.join(" ",
         "start server",
         "--name=server",
         "--dir=" + serverFolder,
@@ -89,24 +91,19 @@ public class FunctionExecutionsTimerRegistrationTest {
         "--J=-Dgemfire.jmx-manager-start=true",
         "--J=-Dgemfire.jmx-manager-port=" + jmxRmiPort);
 
-    String connectCommand = "connect --jmx-manager=localhost[" + jmxRmiPort + "]";
+    stopServerCommand = "stop server --dir=" + serverFolder;
+    connectCommand = "connect --jmx-manager=localhost[" + jmxRmiPort + "]";
     String deployHelpersCommand = "deploy --jar=" + testHelpersJarPath;
 
     gfshRule.execute(startServerCommand, connectCommand, deployHelpersCommand);
 
-    clientCache = new ClientCacheFactory().addPoolServer("localhost", serverPort).create();
-
-    serverPool = PoolManager.createFactory()
-        .addServer("localhost", serverPort)
-        .create("server-pool");
+    createClientAndPool();
   }
 
   @After
   public void tearDown() {
-    serverPool.destroy();
-    clientCache.close();
+    closeClientAndPool();
 
-    String stopServerCommand = "stop server --dir=" + serverFolder;
     gfshRule.execute(stopServerCommand);
   }
 
@@ -126,20 +123,52 @@ public class FunctionExecutionsTimerRegistrationTest {
     assertThat(values)
         .hasSize(2)
         .allMatch(v -> v.functionId.equals(UserDeployedFunction.ID), "Has correct function ID")
+        .allMatch(v -> v.count == 0L, "Has correct count")
+        .allMatch(v -> v.totalTime == 0.0, "Has correct total time")
         .matches(v -> v.stream().anyMatch(t -> t.succeeded), "At least one succeeded timer")
         .matches(v -> v.stream().anyMatch(t -> !t.succeeded), "At least one failure timer");
+  }
+
+  @Test
+  public void timersUnregistered_ifFunctionUndeployed() throws IOException {
+    deployFunction(UserDeployedFunction.class);
+    undeployFunction(UserDeployedFunction.class);
+
+    List<ExecutionsTimerValues> values = getExecutionsTimerValues();
+
+    assertThat(values).isEmpty();
+  }
+
+  private void createClientAndPool() {
+    clientCache = new ClientCacheFactory().addPoolServer("localhost", serverPort).create();
+    serverPool = PoolManager.createFactory()
+        .addServer("localhost", serverPort)
+        .create("server-pool");
+  }
+
+  private void closeClientAndPool() {
+    serverPool.destroy();
+    clientCache.close();
   }
 
   private <T> void deployFunction(Class<? extends Function<T>> functionClass) throws IOException {
     Path functionJarPath = temporaryFolder.getRoot().toPath()
         .resolve(functionClass.getSimpleName() + ".jar").toAbsolutePath();
-
     new ClassBuilder().writeJarFromClasses(functionJarPath.toFile(), functionClass);
-
-    String connectCommand = "connect --jmx-manager=localhost[" + jmxRmiPort + "]";
     String deployFunctionCommand = "deploy --jar=" + functionJarPath;
 
     gfshRule.execute(connectCommand, deployFunctionCommand);
+  }
+
+  private <T> void undeployFunction(Class<? extends Function<T>> functionClass) {
+    closeClientAndPool();
+
+    String functionJarName = functionClass.getSimpleName() + ".jar";
+    String undeployFunctionCommand = "undeploy --jar=" + functionJarName;
+
+    gfshRule.execute(connectCommand, undeployFunctionCommand, stopServerCommand, startServerCommand);
+
+    createClientAndPool();
   }
 
   private List<ExecutionsTimerValues> getExecutionsTimerValues() {
