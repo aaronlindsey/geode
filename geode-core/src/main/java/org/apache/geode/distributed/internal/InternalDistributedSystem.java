@@ -1933,7 +1933,7 @@ public class InternalDistributedSystem extends DistributedSystem
       return FunctionStats.dummy;
     }
     return JavaWorkarounds.computeIfAbsent(functionExecutionStatsMap, textId,
-        key -> new FunctionStats(this, key));
+        key -> new FunctionStats(this, key, getMeterRegistry()));
   }
 
 
@@ -2950,6 +2950,11 @@ public class InternalDistributedSystem extends DistributedSystem
 
   public InternalCache getCache() {
     return dm == null ? null : dm.getCache();
+  }
+
+  public MeterRegistry getMeterRegistry() {
+    InternalCache cache = getCache();
+    return cache == null ? null : cache.getMeterRegistry();
   }
 
   private static StatisticsManagerFactory defaultStatisticsManagerFactory() {

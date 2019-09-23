@@ -14,12 +14,21 @@
  */
 package org.apache.geode.internal.cache.execute;
 
+import static java.lang.Boolean.FALSE;
+import static java.lang.Boolean.TRUE;
+
+import java.util.function.BiFunction;
+
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+
 import org.apache.geode.StatisticDescriptor;
 import org.apache.geode.Statistics;
 import org.apache.geode.StatisticsFactory;
 import org.apache.geode.StatisticsType;
 import org.apache.geode.StatisticsTypeFactory;
 import org.apache.geode.annotations.Immutable;
+import org.apache.geode.annotations.VisibleForTesting;
 import org.apache.geode.distributed.internal.DistributionStats;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.internal.statistics.DummyStatisticsImpl;
@@ -28,11 +37,12 @@ import org.apache.geode.internal.statistics.StatisticsTypeFactoryImpl;
 public class FunctionStats {
 
   public static final String statName = "FunctionStatistics";
-  /** The <code>StatisticsType</code> of the statistics */
+  /**
+   * The <code>StatisticsType</code> of the statistics
+   */
   @Immutable
   private static final StatisticsType _type;
 
-  private FunctionServiceStats aggregateStats;
   /**
    * Total number of completed function.execute() calls (aka invocations of a individual
    * function)Name of the function executions cimpleted statistic
@@ -89,31 +99,49 @@ public class FunctionStats {
    */
   private static final String FUNCTION_EXECUTION_EXCEPTIONS = "functionExecutionsExceptions";
 
-  /** Id of the FUNCTION_EXECUTIONS_COMPLETED statistic */
+  /**
+   * Id of the FUNCTION_EXECUTIONS_COMPLETED statistic
+   */
   private static final int _functionExecutionsCompletedId;
 
-  /** Id of the FUNCTION_EXECUTIONS_COMPLETED_PROCESSING_TIME statistic */
+  /**
+   * Id of the FUNCTION_EXECUTIONS_COMPLETED_PROCESSING_TIME statistic
+   */
   private static final int _functionExecutionsCompletedProcessingTimeId;
 
-  /** Id of the FUNCTION_EXECUTIONS_RUNNING statistic */
+  /**
+   * Id of the FUNCTION_EXECUTIONS_RUNNING statistic
+   */
   private static final int _functionExecutionsRunningId;
 
-  /** Id of the RESULTS_SENT_TO_RESULTCOLLECTOR statistic */
+  /**
+   * Id of the RESULTS_SENT_TO_RESULTCOLLECTOR statistic
+   */
   private static final int _resultsSentToResultCollectorId;
 
-  /** Id of the FUNCTION_EXECUTIONS_CALL statistic */
+  /**
+   * Id of the FUNCTION_EXECUTIONS_CALL statistic
+   */
   private static final int _functionExecutionCallsId;
 
-  /** Id of the FUNCTION_EXECUTION_HASRESULT_COMPLETED_TIME statistic */
+  /**
+   * Id of the FUNCTION_EXECUTION_HASRESULT_COMPLETED_TIME statistic
+   */
   private static final int _functionExecutionsHasResultCompletedProcessingTimeId;
 
-  /** Id of the FUNCTION_EXECUTIONS_HASRESULT_RUNNING statistic */
+  /**
+   * Id of the FUNCTION_EXECUTIONS_HASRESULT_RUNNING statistic
+   */
   private static final int _functionExecutionsHasResultRunningId;
 
-  /** Id of the RESULTS_RECEIVED statistic */
+  /**
+   * Id of the RESULTS_RECEIVED statistic
+   */
   private static final int _resultsReceived;
 
-  /** Id of the FUNCTION_EXECUTIONS_EXCEPTIONS statistic */
+  /**
+   * Id of the FUNCTION_EXECUTIONS_EXCEPTIONS statistic
+   */
   private static final int _functionExecutionExceptions;
 
   /**
@@ -173,23 +201,22 @@ public class FunctionStats {
 
   // //////////////////// Instance Fields //////////////////////
 
-  /** The <code>Statistics</code> instance to which most behavior is delegated */
+  /**
+   * The <code>Statistics</code> instance to which most behavior is delegated
+   */
   private final Statistics _stats;
+  private final FunctionServiceStats aggregateStats;
+  private final MeterRegistry meterRegistry;
+  private final Timer successTimer;
+  private final Timer failureTimer;
 
-  /** This is an instance of the FunctionStats when the statsDisabled = true; */
+  /**
+   * This is an instance of the FunctionStats when the statsDisabled = true;
+   */
   @Immutable
   public static final FunctionStats dummy = createDummy();
 
   // ///////////////////// Constructors ///////////////////////
-
-  private FunctionStats() {
-    this._stats = new DummyStatisticsImpl(_type, null, 0);
-    this.aggregateStats = FunctionServiceStats.createDummy();
-  }
-
-  static FunctionStats createDummy() {
-    return new FunctionStats();
-  }
 
   /**
    * Constructor.
@@ -198,15 +225,70 @@ public class FunctionStats {
    *        instance
    * @param name The name of the <code>Statistics</code>
    */
-  public FunctionStats(StatisticsFactory factory, String name) {
-    this._stats = factory.createAtomicStatistics(_type, name);
-    aggregateStats = ((InternalDistributedSystem) factory).getFunctionServiceStats();
+  public FunctionStats(StatisticsFactory factory, String name, MeterRegistry meterRegistry) {
+    this(name, factory.createAtomicStatistics(_type, name),
+        ((InternalDistributedSystem) factory).getFunctionServiceStats(), meterRegistry);
+  }
+
+  @VisibleForTesting
+  FunctionStats(String functionId, Statistics stats, FunctionServiceStats aggregateStats,
+      MeterRegistry meterRegistry) {
+    this(functionId, stats, aggregateStats, meterRegistry, FunctionStats::registerSuccessTimer,
+        FunctionStats::registerFailureTimer);
+  }
+
+  @VisibleForTesting
+  FunctionStats(String functionId, Statistics stats, FunctionServiceStats aggregateStats,
+      MeterRegistry meterRegistry,
+      BiFunction<String, MeterRegistry, Timer> registerSuccessTimerFunction,
+      BiFunction<String, MeterRegistry, Timer> registerFailureTimerFunction) {
+    this._stats = stats;
+    this.aggregateStats = aggregateStats;
+    this.meterRegistry = meterRegistry;
+
+    successTimer = registerSuccessTimerFunction.apply(functionId, meterRegistry);
+    failureTimer = registerFailureTimerFunction.apply(functionId, meterRegistry);
+  }
+
+  private FunctionStats() {
+    this(null, new DummyStatisticsImpl(_type, null, 0), FunctionServiceStats.createDummy(), null,
+        FunctionStats::registerSuccessTimer, FunctionStats::registerFailureTimer);
+  }
+
+  static FunctionStats createDummy() {
+    return new FunctionStats();
+  }
+
+  private static Timer registerSuccessTimer(String functionId, MeterRegistry meterRegistry) {
+    return meterRegistry == null ? null : Timer.builder("geode.function.executions")
+        .description("Count and total time of successful function executions")
+        .tag("function", functionId)
+        .tag("succeeded", TRUE.toString())
+        .register(meterRegistry);
+  }
+
+  private static Timer registerFailureTimer(String functionId, MeterRegistry meterRegistry) {
+    return meterRegistry == null ? null : Timer.builder("geode.function.executions")
+        .description("Count and total time of failed function executions")
+        .tag("function", functionId)
+        .tag("succeeded", FALSE.toString())
+        .register(meterRegistry);
   }
 
   /**
    * Closes the <code>FunctionServiceStats</code>.
    */
   public void close() {
+    if (successTimer != null) {
+      meterRegistry.remove(successTimer);
+      successTimer.close();
+    }
+
+    if (failureTimer != null) {
+      meterRegistry.remove(failureTimer);
+      failureTimer.close();
+    }
+
     this._stats.close();
   }
 
@@ -382,8 +464,8 @@ public class FunctionStats {
    * Increments the "functionExecutionsCompleted" and "functionExecutionCompleteProcessingTime"
    * stats.
    *
-   * @param start The start of the functionExecution (which is decremented from the current time to
-   *        determine the function Execution processing time).
+   * @param start The start of the functionExecution (which is decremented from the current
+   *        time to determine the function Execution processing time).
    * @param haveResult haveResult=true then update the _functionExecutionHasResultRunningId and
    *        _functionExecutionHasResultCompleteProcessingTimeId
    */
@@ -413,7 +495,6 @@ public class FunctionStats {
   /**
    * Increments the "_functionExecutionException" and decrements "_functionExecutionsRunningId" and
    * decrement "_functionExecutionHasResultRunningId"
-   *
    */
   public void endFunctionExecutionWithException(boolean haveResult) {
     // Decrement function Executions running.
