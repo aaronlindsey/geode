@@ -23,9 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Supplier;
 
-import org.apache.geode.annotations.VisibleForTesting;
 import org.apache.geode.annotations.internal.MakeNotStatic;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.RegionService;
@@ -46,8 +44,6 @@ import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.internal.InternalEntity;
 import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.internal.cache.InternalRegion;
-import org.apache.geode.internal.cache.execute.metrics.FunctionInstrumentor;
-import org.apache.geode.internal.cache.execute.metrics.TimingFunctionInstrumentor;
 
 public class InternalFunctionExecutionServiceImpl
     implements FunctionExecutionService, InternalFunctionExecutionService {
@@ -64,19 +60,8 @@ public class InternalFunctionExecutionServiceImpl
   private static final ConcurrentHashMap<String, Function> idToFunctionMap =
       new ConcurrentHashMap<>();
 
-  private final Supplier<InternalDistributedSystem> distributedSystemSupplier;
-  private final FunctionInstrumentor instrumentor;
-
   public InternalFunctionExecutionServiceImpl() {
-    this(InternalDistributedSystem::getConnectedInstance, new TimingFunctionInstrumentor());
-  }
-
-  @VisibleForTesting
-  InternalFunctionExecutionServiceImpl(
-      Supplier<InternalDistributedSystem> distributedSystemSupplier,
-      FunctionInstrumentor instrumentor) {
-    this.distributedSystemSupplier = distributedSystemSupplier;
-    this.instrumentor = instrumentor;
+    // nothing
   }
 
   // FunctionExecutionService API ----------------------------------------------------------------
@@ -103,22 +88,22 @@ public class InternalFunctionExecutionServiceImpl
 
   @Override
   public Execution onMember(DistributedMember distributedMember) {
-    return onMember(checkIfNull(distributedSystemSupplier.get()), distributedMember);
+    return onMember(getDistributedSystem(), distributedMember);
   }
 
   @Override
   public Execution onMembers(String... groups) {
-    return onMembers(checkIfNull(distributedSystemSupplier.get()), groups);
+    return onMembers(getDistributedSystem(), groups);
   }
 
   @Override
   public Execution onMembers(Set<DistributedMember> distributedMembers) {
-    return onMembers(checkIfNull(distributedSystemSupplier.get()), distributedMembers);
+    return onMembers(getDistributedSystem(), distributedMembers);
   }
 
   @Override
   public Execution onMember(String... groups) {
-    return onMember(checkIfNull(distributedSystemSupplier.get()), groups);
+    return onMember(getDistributedSystem(), groups);
   }
 
   protected Pool findPool(String poolName) {
@@ -184,8 +169,7 @@ public class InternalFunctionExecutionServiceImpl
           "For Functions with isHA true, hasResult must also be true.");
     }
 
-    Function<?> typedFunction = (Function<?>) function;
-    idToFunctionMap.put(function.getId(), instrumentor.instrument(typedFunction));
+    idToFunctionMap.put(function.getId(), function);
   }
 
   @Override
@@ -194,9 +178,7 @@ public class InternalFunctionExecutionServiceImpl
       throw new FunctionException(String.format("%s passed is null",
           "functionId instance "));
     }
-
-    Function removed = idToFunctionMap.remove(functionId);
-    instrumentor.close(removed);
+    idToFunctionMap.remove(functionId);
   }
 
   @Override
@@ -411,12 +393,12 @@ public class InternalFunctionExecutionServiceImpl
     return ((InternalRegion) region).hasServerProxy();
   }
 
-  private static InternalDistributedSystem checkIfNull(InternalDistributedSystem system) {
+  private static DistributedSystem getDistributedSystem() {
+    DistributedSystem system = InternalDistributedSystem.getConnectedInstance();
     if (system == null) {
       throw new DistributedSystemDisconnectedException(
           "This connection to a distributed system has been disconnected.");
     }
-
     return system;
   }
 }
