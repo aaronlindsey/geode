@@ -12,7 +12,7 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package org.apache.geode.metrics;
+package org.apache.geode.metrics.functionexecutions;
 
 
 import static java.lang.Boolean.TRUE;
@@ -41,6 +41,8 @@ import org.apache.geode.cache.client.PoolManager;
 import org.apache.geode.cache.execute.Execution;
 import org.apache.geode.cache.execute.FunctionService;
 import org.apache.geode.internal.AvailablePortHelper;
+import org.apache.geode.metrics.MetricsPublishingService;
+import org.apache.geode.metrics.SimpleMetricsPublishingService;
 import org.apache.geode.rules.ServiceJarRule;
 import org.apache.geode.test.junit.rules.gfsh.GfshRule;
 

@@ -12,7 +12,7 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package org.apache.geode.metrics;
+package org.apache.geode.metrics.functionexecutions;
 
 import java.io.Serializable;
 
