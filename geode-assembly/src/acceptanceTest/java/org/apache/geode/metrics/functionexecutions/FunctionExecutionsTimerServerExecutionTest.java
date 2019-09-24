@@ -15,6 +15,7 @@
 package org.apache.geode.metrics.functionexecutions;
 
 
+import static java.lang.Boolean.FALSE;
 import static java.lang.Boolean.TRUE;
 import static java.util.stream.Collectors.toList;
 import static org.apache.geode.test.compiler.ClassBuilder.writeJarFromClasses;
@@ -143,6 +144,31 @@ public class FunctionExecutionsTimerServerExecutionTest {
   }
 
   @Test
+  public void timersRecordCountAndTotalTimeIfFunctionThrows() {
+    Duration functionDuration = Duration.ofSeconds(1);
+    executeFunctionThatThrows(FunctionToTime.ID, functionDuration);
+
+    ExecutionsTimerValues successTimerValues = getSuccessTimerValues(FunctionToTime.ID);
+    ExecutionsTimerValues failureTimerValues = getFailureTimerValues(FunctionToTime.ID);
+
+    assertThat(successTimerValues.count)
+        .as("Successful function executions count")
+        .isEqualTo(0);
+
+    assertThat(successTimerValues.totalTime)
+        .as("Successful function executions total time")
+        .isEqualTo(0);
+
+    assertThat(failureTimerValues.count)
+        .as("Failed function executions count")
+        .isEqualTo(1);
+
+    assertThat(failureTimerValues.totalTime)
+        .as("Failed function executions total time")
+        .isGreaterThan(functionDuration.toNanos());
+  }
+
+  @Test
   public void timersUnregisteredIfServerRestarts() {
     executeFunctionThatSucceeds(FunctionToTime.ID, Duration.ofMillis(1));
 
@@ -195,10 +221,28 @@ public class FunctionExecutionsTimerServerExecutionTest {
         .isNull();
   }
 
+  @SuppressWarnings("SameParameterValue")
+  private void executeFunctionThatThrows(String functionId, Duration duration) {
+    @SuppressWarnings("unchecked")
+    Execution<String[], String, List<String>> execution =
+        (Execution<String[], String, List<String>>) FunctionService.onServer(serverPool);
+
+    Throwable thrown = catchThrowable(() -> execution
+        .setArguments(new String[] {String.valueOf(duration.toMillis()), FALSE.toString()})
+        .execute(functionId)
+        .getResult());
+
+    assertThat(thrown)
+        .withFailMessage("Expected function to throw but it did not")
+        .isNotNull();
+  }
+
+  @SuppressWarnings("SameParameterValue")
   private ExecutionsTimerValues getSuccessTimerValues(String functionId) {
     return getExecutionsTimerValues(functionId, true);
   }
 
+  @SuppressWarnings("SameParameterValue")
   private ExecutionsTimerValues getFailureTimerValues(String functionId) {
     return getExecutionsTimerValues(functionId, false);
   }
