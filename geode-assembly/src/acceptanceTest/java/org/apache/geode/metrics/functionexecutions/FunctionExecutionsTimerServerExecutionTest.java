@@ -124,7 +124,6 @@ public class FunctionExecutionsTimerServerExecutionTest {
     executeFunctionThatSucceeds(FunctionToTime.ID, functionDuration);
 
     ExecutionsTimerValues successTimerValues = getSuccessTimerValues(FunctionToTime.ID);
-    ExecutionsTimerValues failureTimerValues = getFailureTimerValues(FunctionToTime.ID);
 
     assertThat(successTimerValues.count)
         .as("Successful function executions count")
@@ -133,14 +132,6 @@ public class FunctionExecutionsTimerServerExecutionTest {
     assertThat(successTimerValues.totalTime)
         .as("Successful function executions total time")
         .isGreaterThan(functionDuration.toNanos());
-
-    assertThat(failureTimerValues.count)
-        .as("Failed function executions count")
-        .isEqualTo(0);
-
-    assertThat(failureTimerValues.totalTime)
-        .as("Failed function executions total time")
-        .isEqualTo(0);
   }
 
   @Test
@@ -148,16 +139,7 @@ public class FunctionExecutionsTimerServerExecutionTest {
     Duration functionDuration = Duration.ofSeconds(1);
     executeFunctionThatThrows(FunctionToTime.ID, functionDuration);
 
-    ExecutionsTimerValues successTimerValues = getSuccessTimerValues(FunctionToTime.ID);
     ExecutionsTimerValues failureTimerValues = getFailureTimerValues(FunctionToTime.ID);
-
-    assertThat(successTimerValues.count)
-        .as("Successful function executions count")
-        .isEqualTo(0);
-
-    assertThat(successTimerValues.totalTime)
-        .as("Successful function executions total time")
-        .isEqualTo(0);
 
     assertThat(failureTimerValues.count)
         .as("Failed function executions count")

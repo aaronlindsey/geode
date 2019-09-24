@@ -16,8 +16,11 @@ package org.apache.geode.internal.cache.execute;
 
 import static java.lang.Boolean.FALSE;
 import static java.lang.Boolean.TRUE;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
+import java.util.function.LongSupplier;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -206,6 +209,7 @@ public class FunctionStats {
    */
   private final Statistics _stats;
   private final FunctionServiceStats aggregateStats;
+  private final LongSupplier clock;
   private final MeterRegistry meterRegistry;
   private final Timer successTimer;
   private final Timer failureTimer;
@@ -227,23 +231,25 @@ public class FunctionStats {
    */
   public FunctionStats(StatisticsFactory factory, String name, MeterRegistry meterRegistry) {
     this(name, factory.createAtomicStatistics(_type, name),
-        ((InternalDistributedSystem) factory).getFunctionServiceStats(), meterRegistry);
+        ((InternalDistributedSystem) factory).getFunctionServiceStats(),
+        DistributionStats::getStatTime, meterRegistry);
   }
 
   @VisibleForTesting
   FunctionStats(String functionId, Statistics stats, FunctionServiceStats aggregateStats,
-      MeterRegistry meterRegistry) {
-    this(functionId, stats, aggregateStats, meterRegistry, FunctionStats::registerSuccessTimer,
+                LongSupplier clock, MeterRegistry meterRegistry) {
+    this(functionId, stats, aggregateStats, clock, meterRegistry, FunctionStats::registerSuccessTimer,
         FunctionStats::registerFailureTimer);
   }
 
   @VisibleForTesting
   FunctionStats(String functionId, Statistics stats, FunctionServiceStats aggregateStats,
-      MeterRegistry meterRegistry,
-      BiFunction<String, MeterRegistry, Timer> registerSuccessTimerFunction,
-      BiFunction<String, MeterRegistry, Timer> registerFailureTimerFunction) {
+                LongSupplier clock, MeterRegistry meterRegistry,
+                BiFunction<String, MeterRegistry, Timer> registerSuccessTimerFunction,
+                BiFunction<String, MeterRegistry, Timer> registerFailureTimerFunction) {
     this._stats = stats;
     this.aggregateStats = aggregateStats;
+    this.clock = clock;
     this.meterRegistry = meterRegistry;
 
     successTimer = registerSuccessTimerFunction.apply(functionId, meterRegistry);
@@ -251,7 +257,8 @@ public class FunctionStats {
   }
 
   private FunctionStats() {
-    this(null, new DummyStatisticsImpl(_type, null, 0), FunctionServiceStats.createDummy(), null,
+    this(null, new DummyStatisticsImpl(_type, null, 0), FunctionServiceStats.createDummy(),
+        DistributionStats::getStatTime, null,
         FunctionStats::registerSuccessTimer, FunctionStats::registerFailureTimer);
   }
 
@@ -439,7 +446,7 @@ public class FunctionStats {
    * @return the current time (ns)
    */
   public long startTime() {
-    return DistributionStats.getStatTime();
+    return clock.getAsLong();
   }
 
   /**
@@ -470,7 +477,9 @@ public class FunctionStats {
    *        _functionExecutionHasResultCompleteProcessingTimeId
    */
   public void endFunctionExecution(long start, boolean haveResult) {
-    long ts = DistributionStats.getStatTime();
+    long elapsed = clock.getAsLong() - start;
+
+    successTimer.record(elapsed, NANOSECONDS);
 
     // Increment number of function executions completed
     this._stats.incInt(_functionExecutionsCompletedId, 1);
@@ -479,7 +488,6 @@ public class FunctionStats {
     this._stats.incInt(_functionExecutionsRunningId, -1);
 
     // Increment function execution complete processing time
-    long elapsed = ts - start;
     this._stats.incLong(_functionExecutionsCompletedProcessingTimeId, elapsed);
 
     if (haveResult) {
