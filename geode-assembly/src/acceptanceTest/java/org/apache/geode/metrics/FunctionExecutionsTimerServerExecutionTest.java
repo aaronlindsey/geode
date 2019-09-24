@@ -37,9 +37,6 @@ import org.apache.geode.cache.client.ClientCacheFactory;
 import org.apache.geode.cache.client.Pool;
 import org.apache.geode.cache.client.PoolManager;
 import org.apache.geode.cache.execute.Execution;
-import org.apache.geode.cache.execute.Function;
-import org.apache.geode.cache.execute.FunctionContext;
-import org.apache.geode.cache.execute.FunctionException;
 import org.apache.geode.cache.execute.FunctionService;
 import org.apache.geode.internal.AvailablePortHelper;
 import org.apache.geode.management.internal.cli.functions.ListFunctionFunction;
@@ -232,30 +229,4 @@ public class FunctionExecutionsTimerServerExecutionTest {
     return results.get(0);
   }
 
-  public static class FunctionToTime implements Function<String[]> {
-    private static final String ID = "FunctionToTime";
-
-    @Override
-    public void execute(FunctionContext<String[]> context) {
-      String[] arguments = context.getArguments();
-      long timeToSleep = Long.parseLong(arguments[0]);
-      boolean successful = Boolean.parseBoolean(arguments[1]);
-
-      try {
-        Thread.sleep(timeToSleep);
-      } catch (InterruptedException ignored) {
-      }
-
-      if (successful) {
-        context.getResultSender().lastResult("OK");
-      } else {
-        throw new FunctionException("FAIL");
-      }
-    }
-
-    @Override
-    public String getId() {
-      return ID;
-    }
-  }
 }

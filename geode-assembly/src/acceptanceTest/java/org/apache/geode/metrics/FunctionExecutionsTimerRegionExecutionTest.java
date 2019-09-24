@@ -15,7 +15,6 @@
 package org.apache.geode.metrics;
 
 
-import static java.lang.Boolean.FALSE;
 import static java.lang.Boolean.TRUE;
 import static java.util.stream.Collectors.toList;
 import static org.apache.geode.test.compiler.ClassBuilder.writeJarFromClasses;
@@ -40,19 +39,15 @@ import org.apache.geode.cache.client.ClientRegionShortcut;
 import org.apache.geode.cache.client.Pool;
 import org.apache.geode.cache.client.PoolManager;
 import org.apache.geode.cache.execute.Execution;
-import org.apache.geode.cache.execute.Function;
-import org.apache.geode.cache.execute.FunctionContext;
-import org.apache.geode.cache.execute.FunctionException;
 import org.apache.geode.cache.execute.FunctionService;
 import org.apache.geode.internal.AvailablePortHelper;
 import org.apache.geode.rules.ServiceJarRule;
 import org.apache.geode.test.junit.rules.gfsh.GfshRule;
 
-public class FunctionExecutionsTimerRecordingTest {
+public class FunctionExecutionsTimerRegionExecutionTest {
 
   private int locatorPort;
   private ClientCache clientCache;
-  private Pool server1Pool;
   private Pool multiServerPool;
   private Region<Object, Object> replicateRegion;
 
@@ -100,10 +95,6 @@ public class FunctionExecutionsTimerRecordingTest {
 
     clientCache = new ClientCacheFactory().create();
 
-    server1Pool = PoolManager.createFactory()
-        .addServer("localhost", server1Port)
-        .create("server1");
-
     multiServerPool = PoolManager.createFactory()
         .addServer("localhost", server1Port)
         .addServer("localhost", server2Port)
@@ -119,7 +110,6 @@ public class FunctionExecutionsTimerRecordingTest {
   public void tearDown() {
     replicateRegion.close();
     multiServerPool.destroy();
-    server1Pool.destroy();
     clientCache.close();
 
     String connectToLocatorCommand = "connect --locator=localhost[" + locatorPort + "]";
@@ -128,73 +118,25 @@ public class FunctionExecutionsTimerRecordingTest {
   }
 
   @Test
-  public void timerRecordsCountAndTotalTimeIfFunctionSucceeds() {
-    Duration functionDuration = Duration.ofSeconds(1);
-    executeFunctionThatSucceeds(FunctionToTime.ID, functionDuration);
-
-    List<ExecutionsTimerValues> values = getTimerValuesFromServer1().stream()
-        .filter(v -> v.functionId.equals(FunctionToTime.ID))
-        .filter(v -> v.succeeded)
-        .collect(toList());
-
-    assertThat(values)
-        .hasSize(1);
-
-    assertThat(values.get(0).count)
-        .as("Function execution count")
-        .isEqualTo(1);
-
-    assertThat(values.get(0).totalTime)
-        .as("Function execution total time")
-        .isGreaterThan(functionDuration.toNanos());
-  }
-
-  @Test
-  public void timerRecordsCountAndTotalTimeIfFunctionThrows() {
-    Duration functionDuration = Duration.ofSeconds(1);
-    executeFunctionThatThrows(FunctionToTime.ID, functionDuration);
-
-    List<ExecutionsTimerValues> values = getTimerValuesFromServer1().stream()
-        .filter(v -> v.functionId.equals(FunctionToTime.ID))
-        .filter(v -> !v.succeeded)
-        .collect(toList());
-
-    assertThat(values)
-        .hasSize(1);
-
-    assertThat(values.get(0).count)
-        .as("Function execution count")
-        .isEqualTo(1);
-
-    assertThat(values.get(0).totalTime)
-        .as("Function execution total time")
-        .isGreaterThan(functionDuration.toNanos());
-  }
-
-  @Test
   public void replicateRegionExecutionIncrementsTimerOnOnlyOneServer() {
     Duration functionDuration = Duration.ofSeconds(1);
     executeFunctionOnReplicateRegion(FunctionToTime.ID, functionDuration);
 
-    List<ExecutionsTimerValues> values = getTimerValuesFromAllServers().stream()
-        .flatMap(List::stream)
-        .filter(v -> v.functionId.equals(FunctionToTime.ID))
-        .filter(v -> v.succeeded)
-        .collect(toList());
+    List<ExecutionsTimerValues> values = getSuccessTimerValues(FunctionToTime.ID);
 
     long totalCount = values.stream().map(x -> x.count).reduce(0L, Long::sum);
     double totalTime = values.stream().map(x -> x.totalTime).reduce(0.0, Double::sum);
 
     assertThat(values)
-        .as("Execution timer values for each server")
-        .hasSize(2);
+        .as("Successful function execution timers")
+        .hasSize(1);
 
     assertThat(totalCount)
-        .as("Number of function executions across all servers")
+        .as("Number of successful function executions across all servers")
         .isEqualTo(1);
 
     assertThat(totalTime)
-        .as("Total time of function executions across all servers")
+        .as("Total time of successful function executions across all servers")
         .isBetween((double) functionDuration.toNanos(), ((double) functionDuration.toNanos()) * 2);
   }
 
@@ -207,28 +149,24 @@ public class FunctionExecutionsTimerRecordingTest {
       executeFunctionOnReplicateRegion(FunctionToTime.ID, functionDuration);
     }
 
-    List<ExecutionsTimerValues> values = getTimerValuesFromAllServers().stream()
-        .flatMap(List::stream)
-        .filter(v -> v.functionId.equals(FunctionToTime.ID))
-        .filter(v -> v.succeeded)
-        .collect(toList());
+    List<ExecutionsTimerValues> values = getSuccessTimerValues(FunctionToTime.ID);
 
     long totalCount = values.stream().map(x -> x.count).reduce(0L, Long::sum);
     double totalTime = values.stream().map(x -> x.totalTime).reduce(0.0, Double::sum);
 
     assertThat(values)
-        .as("Execution timer values for each server")
-        .hasSize(2);
+        .as("Successful function execution timers")
+        .hasSize(1);
 
     assertThat(totalCount)
-        .as("Number of function executions across all servers")
+        .as("Number of successful function executions across all servers")
         .isEqualTo(numberOfExecutions);
 
     double expectedMinimumTotalTime = ((double) functionDuration.toNanos()) * numberOfExecutions;
     double expectedMaximumTotalTime = expectedMinimumTotalTime * 2;
 
     assertThat(totalTime)
-        .as("Total time of function executions across all servers")
+        .as("Total time of successful function executions across all servers")
         .isBetween(expectedMinimumTotalTime, expectedMaximumTotalTime);
   }
 
@@ -242,38 +180,6 @@ public class FunctionExecutionsTimerRecordingTest {
         "--server-port=" + serverPort,
         "--locators=localhost[" + locatorPort + "]",
         "--classpath=" + serviceJarPath);
-  }
-
-  @SuppressWarnings("SameParameterValue")
-  private void executeFunctionThatSucceeds(String functionId, Duration duration) {
-    @SuppressWarnings("unchecked")
-    Execution<String[], String, List<String>> execution =
-        (Execution<String[], String, List<String>>) FunctionService.onServer(server1Pool);
-
-    Throwable thrown = catchThrowable(() -> execution
-        .setArguments(new String[] {String.valueOf(duration.toMillis()), TRUE.toString()})
-        .execute(functionId)
-        .getResult());
-
-    assertThat(thrown)
-        .as("Exception from function expected to succeed")
-        .isNull();
-  }
-
-  @SuppressWarnings("SameParameterValue")
-  private void executeFunctionThatThrows(String functionId, Duration duration) {
-    @SuppressWarnings("unchecked")
-    Execution<String[], String, List<String>> execution =
-        (Execution<String[], String, List<String>>) FunctionService.onServer(server1Pool);
-
-    Throwable thrown = catchThrowable(() -> execution
-        .setArguments(new String[] {String.valueOf(duration.toMillis()), FALSE.toString()})
-        .execute(functionId)
-        .getResult());
-
-    assertThat(thrown)
-        .withFailMessage("Expected function to throw but it did not")
-        .isNotNull();
   }
 
   @SuppressWarnings("SameParameterValue")
@@ -292,54 +198,22 @@ public class FunctionExecutionsTimerRecordingTest {
         .isNull();
   }
 
-  private List<ExecutionsTimerValues> getTimerValuesFromServer1() {
-    List<List<ExecutionsTimerValues>> values = getTimerValuesFromPool(server1Pool);
-
-    assertThat(values)
-        .hasSize(1);
-
-    return values.get(0);
+  private List<ExecutionsTimerValues> getSuccessTimerValues(String functionId) {
+    return getAllExecutionsTimerValues().stream()
+        .flatMap(List::stream)
+        .filter(v -> v.functionId.equals(functionId))
+        .filter(v -> v.succeeded)
+        .collect(toList());
   }
 
-  private List<List<ExecutionsTimerValues>> getTimerValuesFromAllServers() {
-    return getTimerValuesFromPool(multiServerPool);
-  }
-
-  private List<List<ExecutionsTimerValues>> getTimerValuesFromPool(Pool serverPool) {
+  private List<List<ExecutionsTimerValues>> getAllExecutionsTimerValues() {
     @SuppressWarnings("unchecked")
     Execution<Void, List<ExecutionsTimerValues>, List<List<ExecutionsTimerValues>>> functionExecution =
         (Execution<Void, List<ExecutionsTimerValues>, List<List<ExecutionsTimerValues>>>) FunctionService
-            .onServers(serverPool);
+            .onServers(multiServerPool);
 
     return functionExecution
         .execute(GetFunctionExecutionTimerValues.ID)
         .getResult();
-  }
-
-  public static class FunctionToTime implements Function<String[]> {
-    private static final String ID = "FunctionToTime";
-
-    @Override
-    public void execute(FunctionContext<String[]> context) {
-      String[] arguments = context.getArguments();
-      long timeToSleep = Long.parseLong(arguments[0]);
-      boolean successful = Boolean.parseBoolean(arguments[1]);
-
-      try {
-        Thread.sleep(timeToSleep);
-      } catch (InterruptedException ignored) {
-      }
-
-      if (successful) {
-        context.getResultSender().lastResult("OK");
-      } else {
-        throw new FunctionException("FAIL");
-      }
-    }
-
-    @Override
-    public String getId() {
-      return ID;
-    }
   }
 }
