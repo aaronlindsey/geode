@@ -197,19 +197,19 @@ public class ServerRegionFunctionExecutor extends AbstractExecution {
       byte hasResult, int timeoutMs) throws FunctionException {
     ServerRegionProxy srp = getServerRegionProxy();
     FunctionStats stats = FunctionStats.getFunctionStats(function.getId(), region.getSystem());
+    long start = stats.startTime();
+    stats.startFunctionExecution(true);
     try {
       validateExecution(function, null);
-      long start = stats.startTime();
-      stats.startFunctionExecution(true);
       srp.executeFunction(function, this, collector, hasResult,
           timeoutMs);
       stats.endFunctionExecution(start, true);
       return collector;
     } catch (FunctionException functionException) {
-      stats.endFunctionExecutionWithException(true);
+      stats.endFunctionExecutionWithException(start, true);
       throw functionException;
     } catch (Exception exception) {
-      stats.endFunctionExecutionWithException(true);
+      stats.endFunctionExecutionWithException(start, true);
       throw new FunctionException(exception);
     }
   }
@@ -220,19 +220,19 @@ public class ServerRegionFunctionExecutor extends AbstractExecution {
 
     ServerRegionProxy srp = getServerRegionProxy();
     FunctionStats stats = FunctionStats.getFunctionStats(functionId, region.getSystem());
+    long start = stats.startTime();
+    stats.startFunctionExecution(true);
     try {
       validateExecution(null, null);
-      long start = stats.startTime();
-      stats.startFunctionExecution(true);
       srp.executeFunction(functionId, this, collector, hasResult, isHA,
           optimizeForWrite, timeoutMs);
       stats.endFunctionExecution(start, true);
       return collector;
     } catch (FunctionException functionException) {
-      stats.endFunctionExecutionWithException(true);
+      stats.endFunctionExecutionWithException(start, true);
       throw functionException;
     } catch (Exception exception) {
-      stats.endFunctionExecutionWithException(true);
+      stats.endFunctionExecutionWithException(start, true);
       throw new FunctionException(exception);
     }
   }
@@ -241,17 +241,17 @@ public class ServerRegionFunctionExecutor extends AbstractExecution {
   private void executeOnServerNoAck(Function function, byte hasResult) throws FunctionException {
     ServerRegionProxy srp = getServerRegionProxy();
     FunctionStats stats = FunctionStats.getFunctionStats(function.getId(), region.getSystem());
+    long start = stats.startTime();
+    stats.startFunctionExecution(false);
     try {
       validateExecution(function, null);
-      long start = stats.startTime();
-      stats.startFunctionExecution(false);
       srp.executeFunctionNoAck(region.getFullPath(), function, this, hasResult, false);
       stats.endFunctionExecution(start, false);
     } catch (FunctionException functionException) {
-      stats.endFunctionExecutionWithException(false);
+      stats.endFunctionExecutionWithException(start, false);
       throw functionException;
     } catch (Exception exception) {
-      stats.endFunctionExecutionWithException(false);
+      stats.endFunctionExecutionWithException(start, false);
       throw new FunctionException(exception);
     }
   }
@@ -260,18 +260,18 @@ public class ServerRegionFunctionExecutor extends AbstractExecution {
       boolean optimizeForWrite) throws FunctionException {
     ServerRegionProxy srp = getServerRegionProxy();
     FunctionStats stats = FunctionStats.getFunctionStats(functionId, region.getSystem());
+    long start = stats.startTime();
+    stats.startFunctionExecution(false);
     try {
       validateExecution(null, null);
-      long start = stats.startTime();
-      stats.startFunctionExecution(false);
       srp.executeFunctionNoAck(region.getFullPath(), functionId, this, hasResult, isHA,
           optimizeForWrite, false);
       stats.endFunctionExecution(start, false);
     } catch (FunctionException functionException) {
-      stats.endFunctionExecutionWithException(false);
+      stats.endFunctionExecutionWithException(start, false);
       throw functionException;
     } catch (Exception exception) {
-      stats.endFunctionExecutionWithException(false);
+      stats.endFunctionExecutionWithException(start, false);
       throw new FunctionException(exception);
     }
   }

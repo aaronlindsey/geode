@@ -228,6 +228,7 @@ public class ExecuteFunction66 extends BaseCommand {
       int earlierClientReadTimeout = handshake.getClientReadTimeout();
       handshake.setClientReadTimeout(functionTimeout);
 
+      long statStartTime = stats.startTime();
       try {
         if (logger.isDebugEnabled()) {
           logger.debug("Executing Function on Server: {} with context: {}", serverConnection,
@@ -256,10 +257,10 @@ public class ExecuteFunction66 extends BaseCommand {
           writeReply(clientMessage, serverConnection);
         }
       } catch (FunctionException e) {
-        stats.endFunctionExecutionWithException(functionObject.hasResult());
+        stats.endFunctionExecutionWithException(statStartTime, functionObject.hasResult());
         throw e;
       } catch (Exception e) {
-        stats.endFunctionExecutionWithException(functionObject.hasResult());
+        stats.endFunctionExecutionWithException(statStartTime, functionObject.hasResult());
         throw new FunctionException(e);
       } finally {
         handshake.setClientReadTimeout(earlierClientReadTimeout);
@@ -344,12 +345,12 @@ public class ExecuteFunction66 extends BaseCommand {
           fn.execute(cx);
         } catch (InternalFunctionInvocationTargetException e) {
           // TRAC #44709: InternalFunctionInvocationTargetException should not be logged
-          stats.endFunctionExecutionWithException(fn.hasResult());
+          stats.endFunctionExecutionWithException(startExecution, fn.hasResult());
           if (logger.isDebugEnabled()) {
             logger.debug("Exception on server while executing function: {}", fn, e);
           }
         } catch (Exception e) {
-          stats.endFunctionExecutionWithException(fn.hasResult());
+          stats.endFunctionExecutionWithException(startExecution, fn.hasResult());
           logger.warn("Exception on server while executing function: {}", fn, e);
         } finally {
           if (txState != null && cache != null) {

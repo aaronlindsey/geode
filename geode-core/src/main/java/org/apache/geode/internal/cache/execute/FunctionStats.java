@@ -41,6 +41,7 @@ import org.apache.geode.internal.statistics.StatisticsTypeFactoryImpl;
 public class FunctionStats {
 
   public static final String statName = "FunctionStatistics";
+
   /**
    * The <code>StatisticsType</code> of the statistics
    */
@@ -513,7 +514,12 @@ public class FunctionStats {
    * Increments the "_functionExecutionException" and decrements "_functionExecutionsRunningId" and
    * decrement "_functionExecutionHasResultRunningId"
    */
-  public void endFunctionExecutionWithException(boolean haveResult) {
+  public void endFunctionExecutionWithException(long startTime, boolean haveResult) {
+    if (failureTimer != null) {
+      long elapsed = clock.getAsLong() - startTime;
+      failureTimer.record(elapsed, NANOSECONDS);
+    }
+
     // Decrement function Executions running.
     this._stats.incInt(_functionExecutionsRunningId, -1);
 

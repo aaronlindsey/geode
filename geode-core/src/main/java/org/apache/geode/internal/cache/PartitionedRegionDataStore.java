@@ -2988,9 +2988,9 @@ public class PartitionedRegionDataStore implements HasCachePerfStats {
             bucketSet, resultSender, isReExecute);
 
     FunctionStats stats = FunctionStats.getFunctionStats(function.getId(), dm.getSystem());
+    long start = stats.startTime();
+    stats.startFunctionExecution(function.hasResult());
     try {
-      long start = stats.startTime();
-      stats.startFunctionExecution(function.hasResult());
       if (logger.isDebugEnabled()) {
         logger.debug("Executing Function: {} on Remote Node with context: ", function.getId(),
             prContext);
@@ -3002,7 +3002,7 @@ public class PartitionedRegionDataStore implements HasCachePerfStats {
         logger.debug("FunctionException occurred on remote node while executing Function: {}",
             function.getId(), functionException);
       }
-      stats.endFunctionExecutionWithException(function.hasResult());
+      stats.endFunctionExecutionWithException(start, function.hasResult());
       if (functionException.getCause() instanceof QueryInvalidException) {
         // Handle this exception differently since it can contain
         // non-serializable objects.

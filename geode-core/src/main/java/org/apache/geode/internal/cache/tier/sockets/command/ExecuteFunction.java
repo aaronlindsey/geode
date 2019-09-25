@@ -166,9 +166,9 @@ public class ExecuteFunction extends BaseCommand {
       int earlierClientReadTimeout = handshake.getClientReadTimeout();
       handshake.setClientReadTimeout(0);
 
+      long startExecution = stats.startTime();
+      stats.startFunctionExecution(functionObject.hasResult());
       try {
-        long startExecution = stats.startTime();
-        stats.startFunctionExecution(functionObject.hasResult());
         if (logger.isDebugEnabled()) {
           logger.debug("Executing Function on Server: {} with context: {}", serverConnection,
               context);
@@ -178,10 +178,10 @@ public class ExecuteFunction extends BaseCommand {
         functionObject.execute(context);
         stats.endFunctionExecution(startExecution, functionObject.hasResult());
       } catch (FunctionException e) {
-        stats.endFunctionExecutionWithException(functionObject.hasResult());
+        stats.endFunctionExecutionWithException(startExecution, functionObject.hasResult());
         throw e;
       } catch (Exception e) {
-        stats.endFunctionExecutionWithException(functionObject.hasResult());
+        stats.endFunctionExecutionWithException(startExecution, functionObject.hasResult());
         throw new FunctionException(e);
       } finally {
         handshake.setClientReadTimeout(earlierClientReadTimeout);

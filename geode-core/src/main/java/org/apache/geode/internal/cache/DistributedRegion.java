@@ -3789,9 +3789,9 @@ public class DistributedRegion extends LocalRegion implements InternalDistribute
     final RegionFunctionContextImpl context = new RegionFunctionContextImpl(cache, function.getId(),
         this, args, filter, null, null, resultSender, isReExecute);
     FunctionStats stats = FunctionStats.getFunctionStats(function.getId(), dm.getSystem());
+    long start = stats.startTime();
+    stats.startFunctionExecution(function.hasResult());
     try {
-      long start = stats.startTime();
-      stats.startFunctionExecution(function.hasResult());
       function.execute(context);
       stats.endFunctionExecution(start, function.hasResult());
     } catch (FunctionException functionException) {
@@ -3799,7 +3799,7 @@ public class DistributedRegion extends LocalRegion implements InternalDistribute
         logger.debug("FunctionException occurred on remote node  while executing Function: {}",
             function.getId(), functionException);
       }
-      stats.endFunctionExecutionWithException(function.hasResult());
+      stats.endFunctionExecutionWithException(start, function.hasResult());
       throw functionException;
     } catch (CacheClosedException cacheClosedexception) {
       if (logger.isDebugEnabled()) {
@@ -3812,7 +3812,7 @@ public class DistributedRegion extends LocalRegion implements InternalDistribute
         logger.debug("Exception occurred on remote node  while executing Function: {}",
             function.getId(), exception);
       }
-      stats.endFunctionExecutionWithException(function.hasResult());
+      stats.endFunctionExecutionWithException(start, function.hasResult());
       throw new FunctionException(exception);
     }
   }
