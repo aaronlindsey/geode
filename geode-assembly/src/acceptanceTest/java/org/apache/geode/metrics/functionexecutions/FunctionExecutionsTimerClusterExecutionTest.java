@@ -46,7 +46,10 @@ import org.apache.geode.metrics.SimpleMetricsPublishingService;
 import org.apache.geode.rules.ServiceJarRule;
 import org.apache.geode.test.junit.rules.gfsh.GfshRule;
 
-public class FunctionExecutionsTimerRegionExecutionTest {
+/**
+ * Acceptance tests for function executions timer on cluster with two servers and one locator
+ */
+public class FunctionExecutionsTimerClusterExecutionTest {
 
   private int locatorPort;
   private ClientCache clientCache;
