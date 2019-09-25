@@ -15,11 +15,11 @@
 package org.apache.geode.metrics.functionexecutions;
 
 
+import static java.io.File.pathSeparatorChar;
 import static java.lang.Boolean.TRUE;
 import static java.util.stream.Collectors.toList;
 import static org.apache.geode.test.compiler.ClassBuilder.writeJarFromClasses;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.catchThrowable;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -39,6 +39,7 @@ import org.apache.geode.cache.client.ClientRegionShortcut;
 import org.apache.geode.cache.client.Pool;
 import org.apache.geode.cache.client.PoolManager;
 import org.apache.geode.cache.execute.Execution;
+import org.apache.geode.cache.execute.Function;
 import org.apache.geode.cache.execute.FunctionService;
 import org.apache.geode.internal.AvailablePortHelper;
 import org.apache.geode.metrics.MetricsPublishingService;
@@ -76,27 +77,25 @@ public class FunctionExecutionsTimerClusterExecutionTest {
     Path serviceJarPath = serviceJarRule.createJarFor("metrics-publishing-service.jar",
         MetricsPublishingService.class, SimpleMetricsPublishingService.class);
 
+    Path functionsJarPath = temporaryFolder.getRoot().toPath()
+        .resolve("functions.jar").toAbsolutePath();
+    writeJarFromClasses(functionsJarPath.toFile(),
+        GetFunctionExecutionTimerValues.class, FunctionToTime.class, ExecutionsTimerValues.class);
+
     String startLocatorCommand = String.join(" ",
         "start locator",
         "--name=" + "locator",
         "--dir=" + temporaryFolder.newFolder("locator").getAbsolutePath(),
         "--port=" + locatorPort);
 
-    String startServer1Command = startServerCommand("server1", server1Port, serviceJarPath);
-    String startServer2Command = startServerCommand("server2", server2Port, serviceJarPath);
+    String startServer1Command = startServerCommand("server1", server1Port, serviceJarPath, functionsJarPath);
+    String startServer2Command = startServerCommand("server2", server2Port, serviceJarPath, functionsJarPath);
 
     String replicateRegionName = "region";
     String createRegionCommand = "create region --type=REPLICATE --name=" + replicateRegionName;
 
-    Path functionsJarPath = temporaryFolder.getRoot().toPath()
-        .resolve("functions.jar").toAbsolutePath();
-    writeJarFromClasses(functionsJarPath.toFile(),
-        GetFunctionExecutionTimerValues.class, FunctionToTime.class, ExecutionsTimerValues.class);
-
-    String deployFunctionsCommand = "deploy --jar=" + functionsJarPath;
-
     gfshRule.execute(startLocatorCommand, startServer1Command, startServer2Command,
-        createRegionCommand, deployFunctionsCommand);
+        createRegionCommand);
 
     clientCache = new ClientCacheFactory().create();
 
@@ -124,58 +123,52 @@ public class FunctionExecutionsTimerClusterExecutionTest {
 
   @Test
   public void replicateRegionExecutionIncrementsTimerOnOnlyOneServer() {
+    FunctionToTime function = new FunctionToTime();
     Duration functionDuration = Duration.ofSeconds(1);
-    executeFunctionOnReplicateRegion(FunctionToTime.ID, functionDuration);
+    executeFunctionOnReplicateRegion(function, functionDuration);
 
-    List<ExecutionsTimerValues> values = getSuccessTimerValues(FunctionToTime.ID);
+    List<ExecutionsTimerValues> values = getAllExecutionsTimerValues(function.getId());
 
     long totalCount = values.stream().map(x -> x.count).reduce(0L, Long::sum);
     double totalTime = values.stream().map(x -> x.totalTime).reduce(0.0, Double::sum);
 
-    assertThat(values)
-        .as("Successful function execution timers")
-        .hasSize(1);
-
     assertThat(totalCount)
-        .as("Number of successful function executions across all servers")
+        .as("Number of function executions across all servers")
         .isEqualTo(1);
 
     assertThat(totalTime)
-        .as("Total time of successful function executions across all servers")
+        .as("Total time of function executions across all servers")
         .isBetween((double) functionDuration.toNanos(), ((double) functionDuration.toNanos()) * 2);
   }
 
   @Test
   public void mutlipleReplicateRegionExecutionsIncrementsTimers() {
+    FunctionToTime function = new FunctionToTime();
     Duration functionDuration = Duration.ofSeconds(1);
     int numberOfExecutions = 10;
 
     for (int i = 0; i < numberOfExecutions; i++) {
-      executeFunctionOnReplicateRegion(FunctionToTime.ID, functionDuration);
+      executeFunctionOnReplicateRegion(function, functionDuration);
     }
 
-    List<ExecutionsTimerValues> values = getSuccessTimerValues(FunctionToTime.ID);
+    List<ExecutionsTimerValues> values = getAllExecutionsTimerValues(function.getId());
 
     long totalCount = values.stream().map(x -> x.count).reduce(0L, Long::sum);
     double totalTime = values.stream().map(x -> x.totalTime).reduce(0.0, Double::sum);
 
-    assertThat(values)
-        .as("Successful function execution timers")
-        .hasSize(1);
-
-    assertThat(totalCount)
-        .as("Number of successful function executions across all servers")
-        .isEqualTo(numberOfExecutions);
-
     double expectedMinimumTotalTime = ((double) functionDuration.toNanos()) * numberOfExecutions;
     double expectedMaximumTotalTime = expectedMinimumTotalTime * 2;
 
+    assertThat(totalCount)
+        .as("Number of function executions across all servers")
+        .isEqualTo(numberOfExecutions);
+
     assertThat(totalTime)
-        .as("Total time of successful function executions across all servers")
+        .as("Total time of function executions across all servers")
         .isBetween(expectedMinimumTotalTime, expectedMaximumTotalTime);
   }
 
-  private String startServerCommand(String serverName, int serverPort, Path serviceJarPath)
+  private String startServerCommand(String serverName, int serverPort, Path serviceJarPath, Path functionsJarPath)
       throws IOException {
     return String.join(" ",
         "start server",
@@ -184,41 +177,33 @@ public class FunctionExecutionsTimerClusterExecutionTest {
         "--dir=" + temporaryFolder.newFolder(serverName).getAbsolutePath(),
         "--server-port=" + serverPort,
         "--locators=localhost[" + locatorPort + "]",
-        "--classpath=" + serviceJarPath);
+        "--classpath=" + serviceJarPath + pathSeparatorChar + functionsJarPath);
   }
 
-  @SuppressWarnings("SameParameterValue")
-  private void executeFunctionOnReplicateRegion(String functionId, Duration duration) {
+  private void executeFunctionOnReplicateRegion(Function<? super String[]> function, Duration duration) {
     @SuppressWarnings("unchecked")
-    Execution<String[], String, List<String>> execution =
-        (Execution<String[], String, List<String>>) FunctionService.onRegion(replicateRegion);
+    Execution<String[], Object, List<Object>> execution =
+        (Execution<String[], Object, List<Object>>) FunctionService.onRegion(replicateRegion);
 
-    Throwable thrown = catchThrowable(() -> execution
+    execution
         .setArguments(new String[] {String.valueOf(duration.toMillis()), TRUE.toString()})
-        .execute(functionId)
-        .getResult());
-
-    assertThat(thrown)
-        .as("Exception from function expected to succeed")
-        .isNull();
+        .execute(function)
+        .getResult();
   }
 
-  private List<ExecutionsTimerValues> getSuccessTimerValues(String functionId) {
-    return getAllExecutionsTimerValues().stream()
-        .flatMap(List::stream)
-        .filter(v -> v.functionId.equals(functionId))
-        .filter(v -> v.succeeded)
-        .collect(toList());
-  }
-
-  private List<List<ExecutionsTimerValues>> getAllExecutionsTimerValues() {
+  private List<ExecutionsTimerValues> getAllExecutionsTimerValues(String functionId) {
     @SuppressWarnings("unchecked")
     Execution<Void, List<ExecutionsTimerValues>, List<List<ExecutionsTimerValues>>> functionExecution =
         (Execution<Void, List<ExecutionsTimerValues>, List<List<ExecutionsTimerValues>>>) FunctionService
             .onServers(multiServerPool);
 
-    return functionExecution
-        .execute(GetFunctionExecutionTimerValues.ID)
+    List<List<ExecutionsTimerValues>> timerValuesForEachServer = functionExecution
+        .execute(new GetFunctionExecutionTimerValues())
         .getResult();
+
+    return timerValuesForEachServer.stream()
+        .flatMap(List::stream)
+        .filter(v -> v.functionId.equals(functionId))
+        .collect(toList());
   }
 }

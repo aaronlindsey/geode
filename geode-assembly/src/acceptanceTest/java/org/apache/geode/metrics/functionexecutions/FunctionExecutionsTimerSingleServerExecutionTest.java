@@ -15,13 +15,14 @@
 package org.apache.geode.metrics.functionexecutions;
 
 
-import static java.lang.Boolean.FALSE;
+import static java.io.File.pathSeparatorChar;
 import static java.lang.Boolean.TRUE;
 import static java.util.stream.Collectors.toList;
 import static org.apache.geode.test.compiler.ClassBuilder.writeJarFromClasses;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -38,6 +39,7 @@ import org.apache.geode.cache.client.ClientCacheFactory;
 import org.apache.geode.cache.client.Pool;
 import org.apache.geode.cache.client.PoolManager;
 import org.apache.geode.cache.execute.Execution;
+import org.apache.geode.cache.execute.Function;
 import org.apache.geode.cache.execute.FunctionService;
 import org.apache.geode.internal.AvailablePortHelper;
 import org.apache.geode.management.internal.cli.functions.ListFunctionFunction;
@@ -79,9 +81,9 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
     Path serviceJarPath = serviceJarRule.createJarFor("services.jar",
         MetricsPublishingService.class, SimpleMetricsPublishingService.class);
 
-    Path functionJarPath =
-        temporaryFolder.getRoot().toPath().resolve("functions.jar").toAbsolutePath();
-    writeJarFromClasses(functionJarPath.toFile(), FunctionToTime.class,
+    Path functionHelpersJarPath =
+        temporaryFolder.getRoot().toPath().resolve("function-helpers.jar").toAbsolutePath();
+    writeJarFromClasses(functionHelpersJarPath.toFile(), FunctionToTime.class,
         GetFunctionExecutionTimerValues.class, ExecutionsTimerValues.class);
 
     startServerCommand = String.join(" ",
@@ -89,18 +91,16 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
         "--name=server",
         "--dir=" + serverFolder,
         "--server-port=" + serverPort,
-        "--classpath=" + serviceJarPath,
+        "--classpath=" + serviceJarPath + pathSeparatorChar + functionHelpersJarPath,
         "--J=-Dgemfire.enable-cluster-config=true",
         "--J=-Dgemfire.jmx-manager=true",
         "--J=-Dgemfire.jmx-manager-start=true",
         "--J=-Dgemfire.jmx-manager-port=" + jmxRmiPort);
 
     stopServerCommand = "stop server --dir=" + serverFolder;
-
     connectCommand = "connect --jmx-manager=localhost[" + jmxRmiPort + "]";
-    String deployFunctionsCommand = "deploy --jar=" + functionJarPath;
 
-    gfshRule.execute(startServerCommand, connectCommand, deployFunctionsCommand);
+    gfshRule.execute(startServerCommand);
 
     createClientAndPool();
   }
@@ -117,16 +117,49 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
     executeInternalFunction();
 
     assertThat(getAllExecutionsTimerValues())
-        .as("Function executions timers")
+        .as("All function executions timers")
         .isEmpty();
   }
 
   @Test
-  public void timersRecordCountAndTotalTimeIfFunctionSucceeds() {
-    Duration functionDuration = Duration.ofSeconds(1);
-    executeFunctionThatSucceeds(FunctionToTime.ID, functionDuration);
+  public void timersNotRegisteredIfFunctionDeployedButNotExecuted() {
+    deployFunction(FunctionToTime.class);
 
-    ExecutionsTimerValues successTimerValues = getSuccessTimerValues(FunctionToTime.ID);
+    assertThat(getAllExecutionsTimerValues())
+        .as("All function executions timers")
+        .isEmpty();
+  }
+
+  @Test
+  public void timersRegisteredIfFunctionDeployedAndThenExecuted() {
+    deployFunction(FunctionToTime.class);
+
+    Duration functionDuration = Duration.ofSeconds(1);
+    executeFunctionById(FunctionToTime.ID, functionDuration);
+
+    assertThat(getAllExecutionsTimerValues())
+        .as("All function executions timers")
+        .hasSize(2);
+  }
+
+  @Test
+  public void timersUnregisteredIfServerRestarts() {
+    executeFunctionThatSucceeds(new FunctionToTime(), Duration.ofMillis(1));
+
+    restartServer();
+
+    assertThat(getAllExecutionsTimerValues())
+        .as("All function executions timers")
+        .isEmpty();
+  }
+
+  @Test
+  public void successTimerRecordsCountAndTotalTimeIfFunctionSucceeds() {
+    FunctionToTime function = new FunctionToTime();
+    Duration functionDuration = Duration.ofSeconds(1);
+    executeFunctionThatSucceeds(function, functionDuration);
+
+    ExecutionsTimerValues successTimerValues = getSuccessTimerValues(function.getId());
 
     assertThat(successTimerValues.count)
         .as("Successful function executions count")
@@ -138,11 +171,12 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
   }
 
   @Test
-  public void timersRecordCountAndTotalTimeIfFunctionThrows() {
+  public void failureTimerRecordsCountAndTotalTimeIfFunctionThrows() {
+    FunctionToTime function = new FunctionToTime();
     Duration functionDuration = Duration.ofSeconds(1);
-    executeFunctionThatThrows(FunctionToTime.ID, functionDuration);
+    executeFunctionThatThrows(function, functionDuration);
 
-    ExecutionsTimerValues failureTimerValues = getFailureTimerValues(FunctionToTime.ID);
+    ExecutionsTimerValues failureTimerValues = getFailureTimerValues(function.getId());
 
     assertThat(failureTimerValues.count)
         .as("Failed function executions count")
@@ -151,17 +185,6 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
     assertThat(failureTimerValues.totalTime)
         .as("Failed function executions total time")
         .isGreaterThan(functionDuration.toNanos());
-  }
-
-  @Test
-  public void timersUnregisteredIfServerRestarts() {
-    executeFunctionThatSucceeds(FunctionToTime.ID, Duration.ofMillis(1));
-
-    restartServer();
-
-    assertThat(getAllExecutionsTimerValues())
-        .as("Function executions timers")
-        .isEmpty();
   }
 
   private void createClientAndPool() {
@@ -182,24 +205,31 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
     createClientAndPool();
   }
 
-  /**
-   * Invokes a GFSH command which internally invokes {@link ListFunctionFunction} which is an
-   * internal function.
-   */
+  @SuppressWarnings("SameParameterValue")
+  private <T> void deployFunction(Class<? extends Function<T>> functionClass) {
+    Path functionJarPath = temporaryFolder.getRoot().toPath()
+        .resolve(functionClass.getSimpleName() + ".jar").toAbsolutePath();
+
+    Throwable thrown = catchThrowable(() ->
+        writeJarFromClasses(functionJarPath.toFile(), functionClass));
+
+    assertThat(thrown)
+        .as("Exception from writing function JAR")
+        .isNull();
+
+    String deployFunctionCommand = "deploy --jar=" + functionJarPath;
+    gfshRule.execute(connectCommand, deployFunctionCommand);
+  }
+
   private void executeInternalFunction() {
-    gfshRule.execute(connectCommand, "list functions");
+    FunctionService.onServer(serverPool)
+        .execute(new ListFunctionFunction())
+        .getResult();
   }
 
   @SuppressWarnings("SameParameterValue")
-  private void executeFunctionThatSucceeds(String functionId, Duration duration) {
-    @SuppressWarnings("unchecked")
-    Execution<String[], String, List<String>> execution =
-        (Execution<String[], String, List<String>>) FunctionService.onServer(serverPool);
-
-    Throwable thrown = catchThrowable(() -> execution
-        .setArguments(new String[] {String.valueOf(duration.toMillis()), TRUE.toString()})
-        .execute(functionId)
-        .getResult());
+  private void executeFunctionThatSucceeds(Function<? super String[]> function, Duration duration) {
+    Throwable thrown = catchThrowable(() -> executeFunction(function, duration, true));
 
     assertThat(thrown)
         .as("Exception from function expected to succeed")
@@ -207,19 +237,39 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
   }
 
   @SuppressWarnings("SameParameterValue")
-  private void executeFunctionThatThrows(String functionId, Duration duration) {
-    @SuppressWarnings("unchecked")
-    Execution<String[], String, List<String>> execution =
-        (Execution<String[], String, List<String>>) FunctionService.onServer(serverPool);
-
-    Throwable thrown = catchThrowable(() -> execution
-        .setArguments(new String[] {String.valueOf(duration.toMillis()), FALSE.toString()})
-        .execute(functionId)
-        .getResult());
+  private void executeFunctionThatThrows(Function<? super String[]> function, Duration duration) {
+    Throwable thrown = catchThrowable(() -> executeFunction(function, duration, false));
 
     assertThat(thrown)
         .withFailMessage("Expected function to throw but it did not")
         .isNotNull();
+  }
+
+  private void executeFunction(Function<? super String[]> function, Duration duration, boolean successful) {
+    @SuppressWarnings("unchecked")
+    Execution<String[], Object, List<Object>> execution =
+        (Execution<String[], Object, List<Object>>) FunctionService.onServer(serverPool);
+
+    execution
+        .setArguments(new String[]{String.valueOf(duration.toMillis()), String.valueOf(successful)})
+        .execute(function)
+        .getResult();
+  }
+
+  @SuppressWarnings("SameParameterValue")
+  private void executeFunctionById(String functionId, Duration duration) {
+    @SuppressWarnings("unchecked")
+    Execution<String[], Object, List<Object>> execution =
+        (Execution<String[], Object, List<Object>>) FunctionService.onServer(serverPool);
+
+    Throwable thrown = catchThrowable(() -> execution
+        .setArguments(new String[]{String.valueOf(duration.toMillis()), TRUE.toString()})
+        .execute(functionId)
+        .getResult());
+
+    assertThat(thrown)
+        .as("Exception from function expected to succeed")
+        .isNull();
   }
 
   @SuppressWarnings("SameParameterValue")
@@ -251,7 +301,7 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
             .onServer(serverPool);
 
     List<List<ExecutionsTimerValues>> results = functionExecution
-        .execute(GetFunctionExecutionTimerValues.ID)
+        .execute(new GetFunctionExecutionTimerValues())
         .getResult();
 
     assertThat(results)
