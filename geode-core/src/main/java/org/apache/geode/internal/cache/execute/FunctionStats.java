@@ -240,16 +240,16 @@ public class FunctionStats {
 
   @VisibleForTesting
   FunctionStats(String functionId, Statistics stats, FunctionServiceStats aggregateStats,
-                LongSupplier clock, BooleanSupplier enableClockStats, MeterRegistry meterRegistry) {
+      LongSupplier clock, BooleanSupplier enableClockStats, MeterRegistry meterRegistry) {
     this(functionId, stats, aggregateStats, clock, enableClockStats, meterRegistry,
         FunctionStats::registerSuccessTimer, FunctionStats::registerFailureTimer);
   }
 
   @VisibleForTesting
   FunctionStats(String functionId, Statistics stats, FunctionServiceStats aggregateStats,
-                LongSupplier clock, BooleanSupplier enableClockStats, MeterRegistry meterRegistry,
-                BiFunction<String, MeterRegistry, Timer> registerSuccessTimerFunction,
-                BiFunction<String, MeterRegistry, Timer> registerFailureTimerFunction) {
+      LongSupplier clock, BooleanSupplier enableClockStats, MeterRegistry meterRegistry,
+      BiFunction<String, MeterRegistry, Timer> registerSuccessTimerFunction,
+      BiFunction<String, MeterRegistry, Timer> registerFailureTimerFunction) {
     this._stats = stats;
     this.aggregateStats = aggregateStats;
     this.clock = clock;

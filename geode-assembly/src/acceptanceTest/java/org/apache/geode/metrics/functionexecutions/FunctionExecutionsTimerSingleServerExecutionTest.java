@@ -17,6 +17,7 @@ package org.apache.geode.metrics.functionexecutions;
 
 import static java.io.File.pathSeparatorChar;
 import static java.lang.Boolean.TRUE;
+import static java.lang.String.valueOf;
 import static java.util.stream.Collectors.toList;
 import static org.apache.geode.test.compiler.ClassBuilder.writeJarFromClasses;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -199,8 +200,8 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
     Path functionJarPath = temporaryFolder.getRoot().toPath()
         .resolve(functionClass.getSimpleName() + ".jar").toAbsolutePath();
 
-    Throwable thrown = catchThrowable(() ->
-        writeJarFromClasses(functionJarPath.toFile(), functionClass));
+    Throwable thrown =
+        catchThrowable(() -> writeJarFromClasses(functionJarPath.toFile(), functionClass));
 
     assertThat(thrown)
         .as("Exception from writing function JAR")
@@ -226,13 +227,14 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
         .isNotNull();
   }
 
-  private void executeFunction(Function<? super String[]> function, Duration duration, boolean successful) {
+  private void executeFunction(Function<? super String[]> function, Duration duration,
+      boolean successful) {
     @SuppressWarnings("unchecked")
     Execution<String[], Object, List<Object>> execution =
         (Execution<String[], Object, List<Object>>) FunctionService.onServer(serverPool);
 
     execution
-        .setArguments(new String[]{String.valueOf(duration.toMillis()), String.valueOf(successful)})
+        .setArguments(new String[] {valueOf(duration.toMillis()), valueOf(successful)})
         .execute(function)
         .getResult();
   }
@@ -244,7 +246,7 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
         (Execution<String[], Object, List<Object>>) FunctionService.onServer(serverPool);
 
     Throwable thrown = catchThrowable(() -> execution
-        .setArguments(new String[]{String.valueOf(duration.toMillis()), TRUE.toString()})
+        .setArguments(new String[] {valueOf(duration.toMillis()), TRUE.toString()})
         .execute(functionId)
         .getResult());
 
@@ -263,7 +265,8 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
     return getExecutionsTimerValues(functionId, false);
   }
 
-  private ExecutionsTimerValues getExecutionsTimerValues(String functionId, boolean succeededTagValue) {
+  private ExecutionsTimerValues getExecutionsTimerValues(String functionId,
+      boolean succeededTagValue) {
     List<ExecutionsTimerValues> executionsTimerValues =
         getAllExecutionsTimerValuesForFunction(functionId).stream()
             .filter(v -> v.succeeded == succeededTagValue)

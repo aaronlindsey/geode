@@ -93,8 +93,10 @@ public class FunctionExecutionsTimerClusterExecutionTest {
 
     String server1Name = "server1";
     String server2Name = "server2";
-    String startServer1Command = startServerCommand(server1Name, server1Port, serviceJarPath, functionsJarPath);
-    String startServer2Command = startServerCommand(server2Name, server2Port, serviceJarPath, functionsJarPath);
+    String startServer1Command =
+        startServerCommand(server1Name, server1Port, serviceJarPath, functionsJarPath);
+    String startServer2Command =
+        startServerCommand(server2Name, server2Port, serviceJarPath, functionsJarPath);
 
     String replicateRegionName = "ReplicateRegion";
     String createReplicateRegionCommand = String.join(" ",
@@ -226,7 +228,8 @@ public class FunctionExecutionsTimerClusterExecutionTest {
         .isEqualTo(0);
   }
 
-  private String startServerCommand(String serverName, int serverPort, Path serviceJarPath, Path functionsJarPath)
+  private String startServerCommand(String serverName, int serverPort, Path serviceJarPath,
+      Path functionsJarPath)
       throws IOException {
     return String.join(" ",
         "start server",
@@ -238,15 +241,18 @@ public class FunctionExecutionsTimerClusterExecutionTest {
         "--classpath=" + serviceJarPath + pathSeparatorChar + functionsJarPath);
   }
 
-  private void executeFunctionOnReplicateRegion(Function<? super String[]> function, Duration duration) {
+  private void executeFunctionOnReplicateRegion(Function<? super String[]> function,
+      Duration duration) {
     executeFunctionOnRegion(function, duration, replicateRegion);
   }
 
-  private void executeFunctionOnPartitionRegion(Function<? super String[]> function, Duration duration) {
+  private void executeFunctionOnPartitionRegion(Function<? super String[]> function,
+      Duration duration) {
     executeFunctionOnRegion(function, duration, partitionRegion);
   }
 
-  private void executeFunctionOnRegion(Function<? super String[]> function, Duration duration, Region<?, ?> region) {
+  private void executeFunctionOnRegion(Function<? super String[]> function, Duration duration,
+      Region<?, ?> region) {
     @SuppressWarnings("unchecked")
     Execution<String[], Object, List<Object>> execution =
         (Execution<String[], Object, List<Object>>) FunctionService.onRegion(region);
@@ -269,7 +275,8 @@ public class FunctionExecutionsTimerClusterExecutionTest {
     return getExecutionsTimerValuesFromPool(functionId, multiServerPool);
   }
 
-  private List<ExecutionsTimerValues> getExecutionsTimerValuesFromPool(String functionId, Pool pool) {
+  private List<ExecutionsTimerValues> getExecutionsTimerValuesFromPool(String functionId,
+      Pool pool) {
     @SuppressWarnings("unchecked")
     Execution<Void, List<ExecutionsTimerValues>, List<List<ExecutionsTimerValues>>> functionExecution =
         (Execution<Void, List<ExecutionsTimerValues>, List<List<ExecutionsTimerValues>>>) FunctionService
