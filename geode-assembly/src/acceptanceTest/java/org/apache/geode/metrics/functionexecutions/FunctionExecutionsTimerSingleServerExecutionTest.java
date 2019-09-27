@@ -42,6 +42,7 @@ import org.apache.geode.cache.execute.Execution;
 import org.apache.geode.cache.execute.Function;
 import org.apache.geode.cache.execute.FunctionService;
 import org.apache.geode.internal.AvailablePortHelper;
+import org.apache.geode.management.internal.cli.functions.ListFunctionFunction;
 import org.apache.geode.metrics.MetricsPublishingService;
 import org.apache.geode.metrics.SimpleMetricsPublishingService;
 import org.apache.geode.rules.ServiceJarRule;
@@ -112,11 +113,20 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
   }
 
   @Test
+  public void timersNotRegisteredIfOnlyInternalFunctionsExecuted() {
+    executeInternalFunction();
+
+    assertThat(getAllExecutionsTimerValues())
+        .as("Function executions timers on server")
+        .isEmpty();
+  }
+
+  @Test
   public void timersNotRegisteredIfFunctionDeployedButNotExecuted() {
     deployFunction(FunctionToTime.class);
 
-    assertThat(getAllExecutionsTimerValuesForFunction(FunctionToTime.ID))
-        .as("Function executions timers")
+    assertThat(getAllExecutionsTimerValues())
+        .as("Function executions timers on server")
         .isEmpty();
   }
 
@@ -127,8 +137,8 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
     Duration functionDuration = Duration.ofSeconds(1);
     executeFunctionById(FunctionToTime.ID, functionDuration);
 
-    assertThat(getAllExecutionsTimerValuesForFunction(FunctionToTime.ID))
-        .as("Function executions timers")
+    assertThat(getAllExecutionsTimerValues())
+        .as("Function executions timers on server")
         .hasSize(2);
   }
 
@@ -138,8 +148,8 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
 
     restartServer();
 
-    assertThat(getAllExecutionsTimerValuesForFunction(FunctionToTime.ID))
-        .as("Function executions timers")
+    assertThat(getAllExecutionsTimerValues())
+        .as("Function executions timers on server")
         .isEmpty();
   }
 
@@ -211,6 +221,12 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
     gfshRule.execute(connectCommand, deployFunctionCommand);
   }
 
+  private void executeInternalFunction() {
+    FunctionService.onServer(serverPool)
+        .execute(new ListFunctionFunction())
+        .getResult();
+  }
+
   private void executeFunctionThatSucceeds(Function<? super String[]> function, Duration duration) {
     Throwable thrown = catchThrowable(() -> executeFunction(function, duration, true));
 
@@ -267,10 +283,10 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
 
   private ExecutionsTimerValues getExecutionsTimerValues(String functionId,
       boolean succeededTagValue) {
-    List<ExecutionsTimerValues> executionsTimerValues =
-        getAllExecutionsTimerValuesForFunction(functionId).stream()
-            .filter(v -> v.succeeded == succeededTagValue)
-            .collect(toList());
+    List<ExecutionsTimerValues> executionsTimerValues = getAllExecutionsTimerValues().stream()
+        .filter(v -> v.functionId.equals(functionId))
+        .filter(v -> v.succeeded == succeededTagValue)
+        .collect(toList());
 
     assertThat(executionsTimerValues)
         .hasSize(1);
@@ -278,7 +294,7 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
     return executionsTimerValues.get(0);
   }
 
-  private List<ExecutionsTimerValues> getAllExecutionsTimerValuesForFunction(String functionId) {
+  private List<ExecutionsTimerValues> getAllExecutionsTimerValues() {
     @SuppressWarnings("unchecked")
     Execution<Void, List<ExecutionsTimerValues>, List<List<ExecutionsTimerValues>>> functionExecution =
         (Execution<Void, List<ExecutionsTimerValues>, List<List<ExecutionsTimerValues>>>) FunctionService
@@ -291,9 +307,7 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
     assertThat(results)
         .hasSize(1);
 
-    return results.get(0).stream()
-        .filter(v -> v.functionId.equals(functionId))
-        .collect(toList());
+    return results.get(0);
   }
 
 }
