@@ -54,8 +54,11 @@ public class FunctionExecutionsTimerClusterExecutionTest {
 
   private int locatorPort;
   private ClientCache clientCache;
+  private Pool server1Pool;
+  private Pool server2Pool;
   private Pool multiServerPool;
   private Region<Object, Object> replicateRegion;
+  private Region<Object, Object> partitionRegion;
 
   @Rule
   public GfshRule gfshRule = new GfshRule();
@@ -88,16 +91,36 @@ public class FunctionExecutionsTimerClusterExecutionTest {
         "--dir=" + temporaryFolder.newFolder("locator").getAbsolutePath(),
         "--port=" + locatorPort);
 
-    String startServer1Command = startServerCommand("server1", server1Port, serviceJarPath, functionsJarPath);
-    String startServer2Command = startServerCommand("server2", server2Port, serviceJarPath, functionsJarPath);
+    String server1Name = "server1";
+    String server2Name = "server2";
+    String startServer1Command = startServerCommand(server1Name, server1Port, serviceJarPath, functionsJarPath);
+    String startServer2Command = startServerCommand(server2Name, server2Port, serviceJarPath, functionsJarPath);
 
-    String replicateRegionName = "region";
-    String createRegionCommand = "create region --type=REPLICATE --name=" + replicateRegionName;
+    String replicateRegionName = "ReplicateRegion";
+    String createReplicateRegionCommand = String.join(" ",
+        "create region",
+        "--type=REPLICATE",
+        "--name=" + replicateRegionName);
+
+    String partitionRegionName = "PartitionRegion";
+    String createPartitionRegionCommand = String.join(" ",
+        "create region",
+        "--type=PARTITION",
+        "--groups=" + server1Name,
+        "--name=" + partitionRegionName);
 
     gfshRule.execute(startLocatorCommand, startServer1Command, startServer2Command,
-        createRegionCommand);
+        createReplicateRegionCommand, createPartitionRegionCommand);
 
     clientCache = new ClientCacheFactory().create();
+
+    server1Pool = PoolManager.createFactory()
+        .addServer("localhost", server1Port)
+        .create("server1Pool");
+
+    server2Pool = PoolManager.createFactory()
+        .addServer("localhost", server2Port)
+        .create("server2Pool");
 
     multiServerPool = PoolManager.createFactory()
         .addServer("localhost", server1Port)
@@ -108,12 +131,20 @@ public class FunctionExecutionsTimerClusterExecutionTest {
         .createClientRegionFactory(ClientRegionShortcut.PROXY)
         .setPoolName(multiServerPool.getName())
         .create(replicateRegionName);
+
+    partitionRegion = clientCache
+        .createClientRegionFactory(ClientRegionShortcut.PROXY)
+        .setPoolName(server1Pool.getName())
+        .create(partitionRegionName);
   }
 
   @After
   public void tearDown() {
+    partitionRegion.close();
     replicateRegion.close();
     multiServerPool.destroy();
+    server2Pool.destroy();
+    server1Pool.destroy();
     clientCache.close();
 
     String connectToLocatorCommand = "connect --locator=localhost[" + locatorPort + "]";
@@ -122,27 +153,24 @@ public class FunctionExecutionsTimerClusterExecutionTest {
   }
 
   @Test
-  public void replicateRegionExecutionIncrementsTimerOnOnlyOneServer() {
+  public void timersRecordCountAndTotalTime_ifFunctionExecutedOnReplicateRegion() {
     FunctionToTime function = new FunctionToTime();
     Duration functionDuration = Duration.ofSeconds(1);
     executeFunctionOnReplicateRegion(function, functionDuration);
 
     List<ExecutionsTimerValues> values = getAllExecutionsTimerValues(function.getId());
 
-    long totalCount = values.stream().map(x -> x.count).reduce(0L, Long::sum);
-    double totalTime = values.stream().map(x -> x.totalTime).reduce(0.0, Double::sum);
-
-    assertThat(totalCount)
+    assertThat(getAggregateCount(values))
         .as("Number of function executions across all servers")
         .isEqualTo(1);
 
-    assertThat(totalTime)
+    assertThat(getAggregateTotalTime(values))
         .as("Total time of function executions across all servers")
         .isBetween((double) functionDuration.toNanos(), ((double) functionDuration.toNanos()) * 2);
   }
 
   @Test
-  public void mutlipleReplicateRegionExecutionsIncrementsTimers() {
+  public void timersRecordCountAndTotalTime_ifFunctionExecutedOnReplicateRegionMultipleTimes() {
     FunctionToTime function = new FunctionToTime();
     Duration functionDuration = Duration.ofSeconds(1);
     int numberOfExecutions = 10;
@@ -153,19 +181,49 @@ public class FunctionExecutionsTimerClusterExecutionTest {
 
     List<ExecutionsTimerValues> values = getAllExecutionsTimerValues(function.getId());
 
-    long totalCount = values.stream().map(x -> x.count).reduce(0L, Long::sum);
-    double totalTime = values.stream().map(x -> x.totalTime).reduce(0.0, Double::sum);
+    double expectedMinimumTotalTime = ((double) functionDuration.toNanos()) * numberOfExecutions;
+    double expectedMaximumTotalTime = expectedMinimumTotalTime * 2;
+
+    assertThat(getAggregateCount(values))
+        .as("Number of function executions across all servers")
+        .isEqualTo(numberOfExecutions);
+
+    assertThat(getAggregateTotalTime(values))
+        .as("Total time of function executions across all servers")
+        .isBetween(expectedMinimumTotalTime, expectedMaximumTotalTime);
+  }
+
+  @Test
+  public void timersRecordCountAndTotalTime_ifFunctionExecutedOnPartitionRegionMultipleTimes() {
+    FunctionToTime function = new FunctionToTime();
+    Duration functionDuration = Duration.ofSeconds(1);
+    int numberOfExecutions = 10;
+
+    for (int i = 0; i < numberOfExecutions; i++) {
+      executeFunctionOnPartitionRegion(function, functionDuration);
+    }
+
+    List<ExecutionsTimerValues> server1Values = getServer1ExecutionsTimerValues(function.getId());
+    List<ExecutionsTimerValues> server2Values = getServer2ExecutionsTimerValues(function.getId());
 
     double expectedMinimumTotalTime = ((double) functionDuration.toNanos()) * numberOfExecutions;
     double expectedMaximumTotalTime = expectedMinimumTotalTime * 2;
 
-    assertThat(totalCount)
-        .as("Number of function executions across all servers")
+    assertThat(getAggregateCount(server1Values))
+        .as("Number of function executions on server 1")
         .isEqualTo(numberOfExecutions);
 
-    assertThat(totalTime)
-        .as("Total time of function executions across all servers")
+    assertThat(getAggregateTotalTime(server1Values))
+        .as("Total time of function executions on server 1")
         .isBetween(expectedMinimumTotalTime, expectedMaximumTotalTime);
+
+    assertThat(getAggregateCount(server2Values))
+        .as("Number of function executions on server 2")
+        .isEqualTo(0);
+
+    assertThat(getAggregateTotalTime(server2Values))
+        .as("Total time of function executions on server 2")
+        .isEqualTo(0);
   }
 
   private String startServerCommand(String serverName, int serverPort, Path serviceJarPath, Path functionsJarPath)
@@ -181,9 +239,17 @@ public class FunctionExecutionsTimerClusterExecutionTest {
   }
 
   private void executeFunctionOnReplicateRegion(Function<? super String[]> function, Duration duration) {
+    executeFunctionOnRegion(function, duration, replicateRegion);
+  }
+
+  private void executeFunctionOnPartitionRegion(Function<? super String[]> function, Duration duration) {
+    executeFunctionOnRegion(function, duration, partitionRegion);
+  }
+
+  private void executeFunctionOnRegion(Function<? super String[]> function, Duration duration, Region<?, ?> region) {
     @SuppressWarnings("unchecked")
     Execution<String[], Object, List<Object>> execution =
-        (Execution<String[], Object, List<Object>>) FunctionService.onRegion(replicateRegion);
+        (Execution<String[], Object, List<Object>>) FunctionService.onRegion(region);
 
     execution
         .setArguments(new String[] {String.valueOf(duration.toMillis()), TRUE.toString()})
@@ -191,11 +257,23 @@ public class FunctionExecutionsTimerClusterExecutionTest {
         .getResult();
   }
 
+  private List<ExecutionsTimerValues> getServer1ExecutionsTimerValues(String functionId) {
+    return getExecutionsTimerValuesFromPool(functionId, server1Pool);
+  }
+
+  private List<ExecutionsTimerValues> getServer2ExecutionsTimerValues(String functionId) {
+    return getExecutionsTimerValuesFromPool(functionId, server2Pool);
+  }
+
   private List<ExecutionsTimerValues> getAllExecutionsTimerValues(String functionId) {
+    return getExecutionsTimerValuesFromPool(functionId, multiServerPool);
+  }
+
+  private List<ExecutionsTimerValues> getExecutionsTimerValuesFromPool(String functionId, Pool pool) {
     @SuppressWarnings("unchecked")
     Execution<Void, List<ExecutionsTimerValues>, List<List<ExecutionsTimerValues>>> functionExecution =
         (Execution<Void, List<ExecutionsTimerValues>, List<List<ExecutionsTimerValues>>>) FunctionService
-            .onServers(multiServerPool);
+            .onServers(pool);
 
     List<List<ExecutionsTimerValues>> timerValuesForEachServer = functionExecution
         .execute(new GetFunctionExecutionTimerValues())
@@ -205,5 +283,13 @@ public class FunctionExecutionsTimerClusterExecutionTest {
         .flatMap(List::stream)
         .filter(v -> v.functionId.equals(functionId))
         .collect(toList());
+  }
+
+  private static Long getAggregateCount(List<ExecutionsTimerValues> values) {
+    return values.stream().map(x -> x.count).reduce(0L, Long::sum);
+  }
+
+  private static Double getAggregateTotalTime(List<ExecutionsTimerValues> values) {
+    return values.stream().map(x -> x.totalTime).reduce(0.0, Double::sum);
   }
 }
