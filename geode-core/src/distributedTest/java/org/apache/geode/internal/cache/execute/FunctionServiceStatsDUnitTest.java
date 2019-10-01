@@ -255,14 +255,14 @@ public class FunctionServiceStatsDUnitTest extends PRClientServerTestBase {
 
       logger.info("Calling FunctionStats for  TEST_FUNCTION2 :");
       FunctionStats functionStats =
-          FunctionStats.getFunctionStats(TestFunction.TEST_FUNCTION2, iDS);
+          FunctionStatsFactory.getFunctionStats(TestFunction.TEST_FUNCTION2, iDS);
       logger.info("Called FunctionStats for  TEST_FUNCTION2 :");
       assertEquals(noOfExecutionCalls_TESTFUNCTION2, functionStats.getFunctionExecutionCalls());
       assertEquals(noOfExecutionsCompleted_TESTFUNCTION2,
           functionStats.getFunctionExecutionsCompleted());
       assertTrue(functionStats.getResultsReceived() >= resultReceived_TESTFUNCTION2);
 
-      functionStats = FunctionStats.getFunctionStats(TestFunction.TEST_FUNCTION3, iDS);
+      functionStats = FunctionStatsFactory.getFunctionStats(TestFunction.TEST_FUNCTION3, iDS);
       assertEquals(noOfExecutionCalls_TESTFUNCTION3, functionStats.getFunctionExecutionCalls());
       assertEquals(noOfExecutionsCompleted_TESTFUNCTION3,
           functionStats.getFunctionExecutionsCompleted());
@@ -284,7 +284,7 @@ public class FunctionServiceStatsDUnitTest extends PRClientServerTestBase {
           .getFunctionExecutionsCompleted() >= noOfExecutionsCompleted_Aggregate);
 
       FunctionStats functionStats =
-          FunctionStats.getFunctionStats(TestFunction.TEST_FUNCTION2, iDS);
+          FunctionStatsFactory.getFunctionStats(TestFunction.TEST_FUNCTION2, iDS);
       // TEST_FUNCTION2 is executed twice
       noOfExecutionCalls_TESTFUNCTION2 += 2;
       assertTrue(functionStats.getFunctionExecutionCalls() >= noOfExecutionCalls_TESTFUNCTION2);
@@ -292,7 +292,7 @@ public class FunctionServiceStatsDUnitTest extends PRClientServerTestBase {
       assertTrue(functionStats
           .getFunctionExecutionsCompleted() >= noOfExecutionsCompleted_TESTFUNCTION2);
 
-      functionStats = FunctionStats.getFunctionStats(TestFunction.TEST_FUNCTION3, iDS);
+      functionStats = FunctionStatsFactory.getFunctionStats(TestFunction.TEST_FUNCTION3, iDS);
       // TEST_FUNCTION3 is executed once
       noOfExecutionCalls_TESTFUNCTION3 += 1;
       assertTrue(functionStats.getFunctionExecutionCalls() >= noOfExecutionCalls_TESTFUNCTION3);
@@ -465,7 +465,7 @@ public class FunctionServiceStatsDUnitTest extends PRClientServerTestBase {
       assertEquals(resultReceived_Aggregate, functionServiceStats.getResultsReceived());
 
       FunctionStats functionStats =
-          FunctionStats.getFunctionStats(TestFunction.TEST_FUNCTION2, iDS);
+          FunctionStatsFactory.getFunctionStats(TestFunction.TEST_FUNCTION2, iDS);
       assertEquals(noOfExecutionCalls_TESTFUNCTION2, functionStats.getFunctionExecutionCalls());
       assertEquals(noOfExecutionsCompleted_TESTFUNCTION2,
           functionStats.getFunctionExecutionsCompleted());
@@ -546,13 +546,13 @@ public class FunctionServiceStatsDUnitTest extends PRClientServerTestBase {
       assertEquals(resultReceived_Aggregate, functionServiceStats.getResultsReceived());
 
       FunctionStats functionStats =
-          FunctionStats.getFunctionStats(TestFunction.TEST_FUNCTION1, iDS);
+          FunctionStatsFactory.getFunctionStats(TestFunction.TEST_FUNCTION1, iDS);
       assertEquals(noOfExecutionCalls_TESTFUNCTION1, functionStats.getFunctionExecutionCalls());
       assertEquals(noOfExecutionsCompleted_TESTFUNCTION1,
           functionStats.getFunctionExecutionsCompleted());
       assertEquals(resultReceived_TESTFUNCTION1, functionStats.getResultsReceived());
 
-      functionStats = FunctionStats.getFunctionStats(TestFunction.TEST_FUNCTION5, iDS);
+      functionStats = FunctionStatsFactory.getFunctionStats(TestFunction.TEST_FUNCTION5, iDS);
       assertEquals(noOfExecutionCalls_TESTFUNCTION5, functionStats.getFunctionExecutionCalls());
       assertEquals(noOfExecutionsCompleted_TESTFUNCTION5,
           functionStats.getFunctionExecutionsCompleted());
@@ -591,7 +591,7 @@ public class FunctionServiceStatsDUnitTest extends PRClientServerTestBase {
       }
 
       FunctionStats functionStats =
-          FunctionStats.getFunctionStats(TestFunction.TEST_FUNCTION1, iDS);
+          FunctionStatsFactory.getFunctionStats(TestFunction.TEST_FUNCTION1, iDS);
       // TEST_FUNCTION1 is executed once
       noOfExecutionCalls_TESTFUNCTION1 += 1;
       assertEquals(noOfExecutionCalls_TESTFUNCTION1, functionStats.getFunctionExecutionCalls());
@@ -599,7 +599,7 @@ public class FunctionServiceStatsDUnitTest extends PRClientServerTestBase {
       assertEquals(noOfExecutionsCompleted_TESTFUNCTION1,
           functionStats.getFunctionExecutionsCompleted());
 
-      functionStats = FunctionStats.getFunctionStats(TestFunction.TEST_FUNCTION5, iDS);
+      functionStats = FunctionStatsFactory.getFunctionStats(TestFunction.TEST_FUNCTION5, iDS);
       // TEST_FUNCTION5 is executed once
       noOfExecutionCalls_TESTFUNCTION5 += 1;
       assertEquals(noOfExecutionCalls_TESTFUNCTION5, functionStats.getFunctionExecutionCalls());
@@ -722,13 +722,13 @@ public class FunctionServiceStatsDUnitTest extends PRClientServerTestBase {
       assertEquals(resultReceived_Aggregate, functionServiceStats.getResultsReceived());
 
       FunctionStats functionStats =
-          FunctionStats.getFunctionStats(TestFunction.TEST_FUNCTION2, iDS);
+          FunctionStatsFactory.getFunctionStats(TestFunction.TEST_FUNCTION2, iDS);
       assertEquals(noOfExecutionCalls_TESTFUNCTION2, functionStats.getFunctionExecutionCalls());
       assertEquals(noOfExecutionsCompleted_TESTFUNCTION2,
           functionStats.getFunctionExecutionsCompleted());
       assertEquals(resultReceived_TESTFUNCTION2, functionStats.getResultsReceived());
 
-      functionStats = FunctionStats.getFunctionStats(TestFunction.TEST_FUNCTION3, iDS);
+      functionStats = FunctionStatsFactory.getFunctionStats(TestFunction.TEST_FUNCTION3, iDS);
       assertEquals(noOfExecutionCalls_TESTFUNCTION3, functionStats.getFunctionExecutionCalls());
       assertEquals(noOfExecutionsCompleted_TESTFUNCTION3,
           functionStats.getFunctionExecutionsCompleted());
@@ -750,7 +750,7 @@ public class FunctionServiceStatsDUnitTest extends PRClientServerTestBase {
           functionServiceStats.getFunctionExecutionsCompleted());
 
       FunctionStats functionStats =
-          FunctionStats.getFunctionStats(TestFunction.TEST_FUNCTION2, iDS);
+          FunctionStatsFactory.getFunctionStats(TestFunction.TEST_FUNCTION2, iDS);
       // TEST_FUNCTION2 is executed twice
       noOfExecutionCalls_TESTFUNCTION2 += 2;
       assertEquals(noOfExecutionCalls_TESTFUNCTION2,
@@ -759,7 +759,7 @@ public class FunctionServiceStatsDUnitTest extends PRClientServerTestBase {
       assertEquals(noOfExecutionsCompleted_TESTFUNCTION2,
           functionStats.getFunctionExecutionsCompleted());
 
-      functionStats = FunctionStats.getFunctionStats(TestFunction.TEST_FUNCTION3, iDS);
+      functionStats = FunctionStatsFactory.getFunctionStats(TestFunction.TEST_FUNCTION3, iDS);
       // TEST_FUNCTION3 is executed once
       noOfExecutionCalls_TESTFUNCTION3 += 1;
       assertEquals(noOfExecutionCalls_TESTFUNCTION3,
@@ -952,7 +952,7 @@ public class FunctionServiceStatsDUnitTest extends PRClientServerTestBase {
           functionServiceStats.getFunctionExecutionsCompleted());
       assertEquals(resultReceived_Aggregate, functionServiceStats.getResultsReceived());
 
-      FunctionStats functionStats = FunctionStats.getFunctionStats(inlineFunction.getId(), ds);
+      FunctionStats functionStats = FunctionStatsFactory.getFunctionStats(inlineFunction.getId(), ds);
       assertEquals(noOfExecutionCalls_Inline, functionStats.getFunctionExecutionCalls());
       assertEquals(noOfExecutionsCompleted_Inline,
           functionStats.getFunctionExecutionsCompleted());
@@ -972,7 +972,7 @@ public class FunctionServiceStatsDUnitTest extends PRClientServerTestBase {
           functionServiceStats.getFunctionExecutionsCompleted());
 
       FunctionStats functionStats =
-          FunctionStats.getFunctionStats(inlineFunction.getId(), ds);
+          FunctionStatsFactory.getFunctionStats(inlineFunction.getId(), ds);
       // noOfExecutionCalls_Inline++;
       // noOfExecutionsCompleted_Inline++;
       assertEquals(noOfExecutionCalls_Inline, functionStats.getFunctionExecutionCalls());

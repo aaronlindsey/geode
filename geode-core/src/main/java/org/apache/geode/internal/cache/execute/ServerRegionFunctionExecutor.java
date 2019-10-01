@@ -196,7 +196,7 @@ public class ServerRegionFunctionExecutor extends AbstractExecution {
   private ResultCollector executeOnServer(Function function, ResultCollector collector,
       byte hasResult, int timeoutMs) throws FunctionException {
     ServerRegionProxy srp = getServerRegionProxy();
-    FunctionStats stats = FunctionStats.getFunctionStats(function.getId(), region.getSystem());
+    FunctionStats stats = FunctionStatsFactory.getFunctionStats(function.getId(), region.getSystem());
     long start = stats.startTime();
     stats.startFunctionExecution(true);
     try {
@@ -219,7 +219,7 @@ public class ServerRegionFunctionExecutor extends AbstractExecution {
       throws FunctionException {
 
     ServerRegionProxy srp = getServerRegionProxy();
-    FunctionStats stats = FunctionStats.getFunctionStats(functionId, region.getSystem());
+    FunctionStats stats = FunctionStatsFactory.getFunctionStats(functionId, region.getSystem());
     long start = stats.startTime();
     stats.startFunctionExecution(true);
     try {
@@ -240,7 +240,7 @@ public class ServerRegionFunctionExecutor extends AbstractExecution {
 
   private void executeOnServerNoAck(Function function, byte hasResult) throws FunctionException {
     ServerRegionProxy srp = getServerRegionProxy();
-    FunctionStats stats = FunctionStats.getFunctionStats(function.getId(), region.getSystem());
+    FunctionStats stats = FunctionStatsFactory.getFunctionStats(function.getId(), region.getSystem());
     long start = stats.startTime();
     stats.startFunctionExecution(false);
     try {
@@ -259,7 +259,7 @@ public class ServerRegionFunctionExecutor extends AbstractExecution {
   private void executeOnServerNoAck(String functionId, byte hasResult, boolean isHA,
       boolean optimizeForWrite) throws FunctionException {
     ServerRegionProxy srp = getServerRegionProxy();
-    FunctionStats stats = FunctionStats.getFunctionStats(functionId, region.getSystem());
+    FunctionStats stats = FunctionStatsFactory.getFunctionStats(functionId, region.getSystem());
     long start = stats.startTime();
     stats.startFunctionExecution(false);
     try {

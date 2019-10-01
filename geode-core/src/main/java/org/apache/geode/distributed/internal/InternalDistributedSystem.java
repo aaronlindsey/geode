@@ -93,7 +93,9 @@ import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.InternalCacheBuilder;
 import org.apache.geode.internal.cache.execute.FunctionServiceStats;
 import org.apache.geode.internal.cache.execute.FunctionStats;
+import org.apache.geode.internal.cache.execute.FunctionStatsFactory;
 import org.apache.geode.internal.cache.execute.InternalFunctionService;
+import org.apache.geode.internal.cache.execute.LegacyFunctionStats;
 import org.apache.geode.internal.cache.tier.sockets.EncryptorImpl;
 import org.apache.geode.internal.cache.xmlcache.CacheServerCreation;
 import org.apache.geode.internal.config.ClusterConfigurationNotAvailableException;
@@ -1930,10 +1932,10 @@ public class InternalDistributedSystem extends DistributedSystem
 
   public FunctionStats getFunctionStats(String textId) {
     if (statsDisabled) {
-      return FunctionStats.dummy;
+      return FunctionStatsFactory.dummy;
     }
     return JavaWorkarounds.computeIfAbsent(functionExecutionStatsMap, textId,
-        key -> new FunctionStats(this, key, getMeterRegistry()));
+        key -> FunctionStatsFactory.create(this, key, getMeterRegistry()));
   }
 
 

@@ -38,7 +38,7 @@ import org.apache.geode.cache.execute.ResultCollector;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.internal.cache.execute.AbstractExecution;
 import org.apache.geode.internal.cache.execute.BucketMovedException;
-import org.apache.geode.internal.cache.execute.FunctionStats;
+import org.apache.geode.internal.cache.execute.FunctionStatsFactory;
 import org.apache.geode.internal.cache.execute.InternalFunctionException;
 import org.apache.geode.internal.cache.execute.InternalFunctionInvocationTargetException;
 import org.apache.geode.internal.cache.execute.MemberMappedArgument;
@@ -337,7 +337,7 @@ public class ExecuteRegionFunctionOp {
                   DistributedMember memberID =
                       (DistributedMember) ((ArrayList) resultResponse).get(1);
                   resultCollector.addResult(memberID, cause);
-                  FunctionStats
+                  FunctionStatsFactory
                       .getFunctionStats(functionId, executor.getRegion().getSystem())
                       .incResultsReceived();
                 } else if (((FunctionException) result)
@@ -393,7 +393,7 @@ public class ExecuteRegionFunctionOp {
                 DistributedMember memberID =
                     (DistributedMember) ((ArrayList) resultResponse).get(1);
                 resultCollector.addResult(memberID, result);
-                FunctionStats
+                FunctionStatsFactory
                     .getFunctionStats(functionId, executor.getRegion().getSystem())
                     .incResultsReceived();
               }

@@ -47,6 +47,7 @@ import org.apache.geode.distributed.internal.membership.InternalDistributedMembe
 import org.apache.geode.internal.InternalDataSerializer;
 import org.apache.geode.internal.cache.execute.FunctionContextImpl;
 import org.apache.geode.internal.cache.execute.FunctionStats;
+import org.apache.geode.internal.cache.execute.FunctionStatsFactory;
 import org.apache.geode.internal.cache.execute.MemberFunctionResultSender;
 import org.apache.geode.internal.cache.execute.MultiRegionFunctionContextImpl;
 import org.apache.geode.internal.logging.LogService;
@@ -160,7 +161,7 @@ public class MemberFunctionStreamingMessage extends DistributionMessage
     }
 
     FunctionStats stats =
-        FunctionStats.getFunctionStats(this.functionObject.getId(), dm.getSystem());
+        FunctionStatsFactory.getFunctionStats(this.functionObject.getId(), dm.getSystem());
     TXStateProxy tx = null;
     InternalCache cache = dm.getCache();
 

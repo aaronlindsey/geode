@@ -16,13 +16,11 @@ package org.apache.geode.internal.cache.execute;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 
 import io.micrometer.core.instrument.MeterRegistry;
@@ -37,9 +35,7 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.mockito.quality.Strictness;
 
-import org.apache.geode.Statistics;
-
-public class FunctionStatsTest {
+public class MicrometerFunctionStatsTest {
 
   private static final String FUNCTION_ID = "TestFunction";
 
@@ -47,16 +43,7 @@ public class FunctionStatsTest {
   public MockitoRule mockitoRule = MockitoJUnit.rule().strictness(Strictness.STRICT_STUBS);
 
   @Mock
-  private Statistics statistics;
-
-  @Mock
-  private FunctionServiceStats functionServiceStats;
-
-  @Mock
   private LongSupplier clock;
-
-  @Mock
-  private BooleanSupplier enableClockStats;
 
   private SimpleMeterRegistry meterRegistry;
 
@@ -72,8 +59,7 @@ public class FunctionStatsTest {
 
   @Test
   public void constructor_registersSuccessTimer() {
-    new FunctionStats(FUNCTION_ID, statistics, functionServiceStats, clock, enableClockStats,
-        meterRegistry);
+    new MicrometerFunctionStats(FUNCTION_ID, clock, meterRegistry);
 
     assertThat(successTimer())
         .as("geode.function.executions timer with tags function=%s, succeeded=true", FUNCTION_ID)
@@ -85,8 +71,7 @@ public class FunctionStatsTest {
 
   @Test
   public void constructor_registersFailureTimer() {
-    new FunctionStats(FUNCTION_ID, statistics, functionServiceStats, clock, enableClockStats,
-        meterRegistry);
+    new MicrometerFunctionStats(FUNCTION_ID, clock, meterRegistry);
 
     assertThat(failureTimer())
         .as("geode.function.executions timer with tags function=%s, succeeded=false", FUNCTION_ID)
@@ -97,16 +82,15 @@ public class FunctionStatsTest {
   }
 
   @Test
-  public void constructor_doesNotThrow_ifMeterRegistryIsNull() {
-    assertThatCode(() -> new FunctionStats(FUNCTION_ID, statistics, functionServiceStats, clock,
-        enableClockStats, null))
-            .doesNotThrowAnyException();
+  public void constructor_throws_ifMeterRegistryIsNull() {
+    Throwable thrown = catchThrowable(() -> new MicrometerFunctionStats(FUNCTION_ID, clock, null));
+    assertThat(thrown)
+        .isInstanceOf(NullPointerException.class);
   }
 
   @Test
   public void close_removesSuccessTimer() {
-    FunctionStats functionStats = new FunctionStats(FUNCTION_ID, statistics, functionServiceStats,
-        clock, enableClockStats, meterRegistry);
+    FunctionStats functionStats = new MicrometerFunctionStats(FUNCTION_ID, clock, meterRegistry);
 
     functionStats.close();
 
@@ -117,8 +101,7 @@ public class FunctionStatsTest {
 
   @Test
   public void close_removesFailureTimer() {
-    FunctionStats functionStats = new FunctionStats(FUNCTION_ID, statistics, functionServiceStats,
-        clock, enableClockStats, meterRegistry);
+    FunctionStats functionStats = new MicrometerFunctionStats(FUNCTION_ID, clock, meterRegistry);
 
     functionStats.close();
 
@@ -131,8 +114,7 @@ public class FunctionStatsTest {
   public void close_closesTimers() {
     Timer successTimer = mock(Timer.class);
     Timer failureTimer = mock(Timer.class);
-    FunctionStats functionStats = new FunctionStats(FUNCTION_ID, statistics, functionServiceStats,
-        clock, enableClockStats, mock(MeterRegistry.class),
+    FunctionStats functionStats = new MicrometerFunctionStats(FUNCTION_ID, clock, mock(MeterRegistry.class),
         (a, b) -> successTimer, (a, b) -> failureTimer);
 
     functionStats.close();
@@ -142,18 +124,8 @@ public class FunctionStatsTest {
   }
 
   @Test
-  public void close_doesNotThrow_ifMeterRegistryIsNull() {
-    FunctionStats functionStats = new FunctionStats(FUNCTION_ID, statistics, functionServiceStats,
-        clock, enableClockStats, null);
-
-    assertThatCode(functionStats::close)
-        .doesNotThrowAnyException();
-  }
-
-  @Test
   public void endFunctionExecution_incrementsSuccessTimerCount() {
-    FunctionStats functionStats = new FunctionStats(FUNCTION_ID, statistics, functionServiceStats,
-        clock, enableClockStats, meterRegistry);
+    FunctionStats functionStats = new MicrometerFunctionStats(FUNCTION_ID, clock, meterRegistry);
 
     functionStats.endFunctionExecution(0, false);
 
@@ -164,9 +136,7 @@ public class FunctionStatsTest {
 
   @Test
   public void endFunctionExecution_doesNotIncrementFailureTimerCount() {
-    FunctionStats functionStats =
-        new FunctionStats(FUNCTION_ID, statistics, functionServiceStats, clock, enableClockStats,
-            meterRegistry);
+    FunctionStats functionStats = new MicrometerFunctionStats(FUNCTION_ID, clock, meterRegistry);
 
     functionStats.endFunctionExecution(0, false);
 
@@ -177,8 +147,7 @@ public class FunctionStatsTest {
 
   @Test
   public void endFunctionExecution_incrementsSuccessTimerTotalTime() {
-    FunctionStats functionStats = new FunctionStats(FUNCTION_ID, statistics, functionServiceStats,
-        clock, enableClockStats, meterRegistry);
+    FunctionStats functionStats = new MicrometerFunctionStats(FUNCTION_ID, clock, meterRegistry);
     when(clock.getAsLong()).thenReturn(42L);
 
     functionStats.endFunctionExecution(0, false);
@@ -190,8 +159,7 @@ public class FunctionStatsTest {
 
   @Test
   public void endFunctionExecution_doesNotIncrementFailureTimerTotalTime() {
-    FunctionStats functionStats = new FunctionStats(FUNCTION_ID, statistics, functionServiceStats,
-        clock, enableClockStats, meterRegistry);
+    FunctionStats functionStats = new MicrometerFunctionStats(FUNCTION_ID, clock, meterRegistry);
     when(clock.getAsLong()).thenReturn(42L);
 
     functionStats.endFunctionExecution(0, false);
@@ -202,48 +170,8 @@ public class FunctionStatsTest {
   }
 
   @Test
-  public void endFunctionExecution_doesNotThrow_ifMeterRegistryIsNull() {
-    FunctionStats functionStats = new FunctionStats(FUNCTION_ID, statistics, functionServiceStats,
-        clock, enableClockStats, null);
-
-    assertThatCode(() -> functionStats.endFunctionExecution(0, false))
-        .doesNotThrowAnyException();
-  }
-
-  @Test
-  public void endFunctionExecution_incrementsClockStats_ifClockStatsEnabled() {
-    FunctionStats functionStats = new FunctionStats(FUNCTION_ID, statistics, functionServiceStats,
-        clock, enableClockStats, meterRegistry);
-    when(clock.getAsLong()).thenReturn(42L);
-    when(enableClockStats.getAsBoolean()).thenReturn(true);
-
-    functionStats.endFunctionExecution(0, true);
-
-    verify(statistics)
-        .incLong(functionStats.getFunctionExecutionsCompletedProcessingTimeId(), 42L);
-    verify(statistics)
-        .incLong(functionStats.getFunctionExecutionsHasResultCompletedProcessingTimeId(), 42L);
-  }
-
-  @Test
-  public void endFunctionExecution_doesNotIncrementClockStats_ifClockStatsDisabled() {
-    FunctionStats functionStats = new FunctionStats(FUNCTION_ID, statistics, functionServiceStats,
-        clock, enableClockStats, meterRegistry);
-    when(clock.getAsLong()).thenReturn(42L);
-    when(enableClockStats.getAsBoolean()).thenReturn(false);
-
-    functionStats.endFunctionExecution(0, true);
-
-    verify(statistics, never())
-        .incLong(functionStats.getFunctionExecutionsCompletedProcessingTimeId(), 42L);
-    verify(statistics, never())
-        .incLong(functionStats.getFunctionExecutionsHasResultCompletedProcessingTimeId(), 42L);
-  }
-
-  @Test
   public void endFunctionExecutionWithException_incrementsFailureTimerCount() {
-    FunctionStats functionStats = new FunctionStats(FUNCTION_ID, statistics, functionServiceStats,
-        clock, enableClockStats, meterRegistry);
+    FunctionStats functionStats = new MicrometerFunctionStats(FUNCTION_ID, clock, meterRegistry);
 
     functionStats.endFunctionExecutionWithException(0, false);
 
@@ -254,8 +182,7 @@ public class FunctionStatsTest {
 
   @Test
   public void endFunctionExecutionWithException_doesNotIncrementSuccessTimerCount() {
-    FunctionStats functionStats = new FunctionStats(FUNCTION_ID, statistics, functionServiceStats,
-        clock, enableClockStats, meterRegistry);
+    FunctionStats functionStats = new MicrometerFunctionStats(FUNCTION_ID, clock, meterRegistry);
 
     functionStats.endFunctionExecutionWithException(0, false);
 
@@ -266,8 +193,7 @@ public class FunctionStatsTest {
 
   @Test
   public void endFunctionExecutionWithException_incrementsFailureTimerTotalTime() {
-    FunctionStats functionStats = new FunctionStats(FUNCTION_ID, statistics, functionServiceStats,
-        clock, enableClockStats, meterRegistry);
+    FunctionStats functionStats = new MicrometerFunctionStats(FUNCTION_ID, clock, meterRegistry);
     when(clock.getAsLong()).thenReturn(42L);
 
     functionStats.endFunctionExecutionWithException(0, false);
@@ -279,8 +205,7 @@ public class FunctionStatsTest {
 
   @Test
   public void endFunctionExecutionWithException_doesNotIncrementSuccessTimerTotalTime() {
-    FunctionStats functionStats = new FunctionStats(FUNCTION_ID, statistics, functionServiceStats,
-        clock, enableClockStats, meterRegistry);
+    FunctionStats functionStats = new MicrometerFunctionStats(FUNCTION_ID, clock, meterRegistry);
     when(clock.getAsLong()).thenReturn(42L);
 
     functionStats.endFunctionExecutionWithException(0, false);
@@ -288,15 +213,6 @@ public class FunctionStatsTest {
     assertThat(successTimer().totalTime(NANOSECONDS))
         .as("Success timer total time")
         .isEqualTo(0);
-  }
-
-  @Test
-  public void endFunctionExecutionWithException_doesNotThrow_ifMeterRegistryIsNull() {
-    FunctionStats functionStats = new FunctionStats(FUNCTION_ID, statistics, functionServiceStats,
-        clock, enableClockStats, null);
-
-    assertThatCode(() -> functionStats.endFunctionExecutionWithException(0, false))
-        .doesNotThrowAnyException();
   }
 
   private Timer successTimer() {

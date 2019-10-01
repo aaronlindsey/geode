@@ -146,7 +146,7 @@ public class ServerFunctionExecutor extends AbstractExecution {
 
   private ResultCollector executeOnServer(Function function, ResultCollector rc, byte hasResult,
       int timeoutMs) {
-    FunctionStats stats = FunctionStats.getFunctionStats(function.getId());
+    FunctionStats stats = FunctionStatsFactory.getFunctionStats(function.getId());
     long start = stats.startTime();
     stats.startFunctionExecution(true);
     try {
@@ -191,7 +191,7 @@ public class ServerFunctionExecutor extends AbstractExecution {
 
   private ResultCollector executeOnServer(String functionId, ResultCollector rc, byte hasResult,
       boolean isHA, boolean optimizeForWrite, int timeoutMs) {
-    FunctionStats stats = FunctionStats.getFunctionStats(functionId);
+    FunctionStats stats = FunctionStatsFactory.getFunctionStats(functionId);
     long start = stats.startTime();
     stats.startFunctionExecution(true);
     try {
@@ -236,7 +236,7 @@ public class ServerFunctionExecutor extends AbstractExecution {
   }
 
   private void executeOnServerNoAck(Function function, byte hasResult) {
-    FunctionStats stats = FunctionStats.getFunctionStats(function.getId());
+    FunctionStats stats = FunctionStatsFactory.getFunctionStats(function.getId());
     long start = stats.startTime();
     stats.startFunctionExecution(false);
     try {
@@ -257,7 +257,7 @@ public class ServerFunctionExecutor extends AbstractExecution {
 
   private void executeOnServerNoAck(String functionId, byte hasResult, boolean isHA,
       boolean optimizeForWrite) {
-    FunctionStats stats = FunctionStats.getFunctionStats(functionId);
+    FunctionStats stats = FunctionStatsFactory.getFunctionStats(functionId);
     long start = stats.startTime();
     stats.startFunctionExecution(false);
     try {

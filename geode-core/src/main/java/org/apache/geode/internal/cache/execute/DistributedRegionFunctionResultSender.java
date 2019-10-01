@@ -89,7 +89,7 @@ public class DistributedRegionFunctionResultSender implements InternalResultSend
       if (isLocal) {
         this.rc.addResult(dm.getDistributionManagerId(), oneResult);
         this.rc.endResults();
-        FunctionStats.getFunctionStats(functionObject.getId(), this.dm.getSystem())
+        FunctionStatsFactory.getFunctionStats(functionObject.getId(), this.dm.getSystem())
             .incResultsReceived();
       } else {
         try {
@@ -101,7 +101,7 @@ public class DistributedRegionFunctionResultSender implements InternalResultSend
         }
       }
       // incrementing result sent stats.
-      FunctionStats.getFunctionStats(functionObject.getId(), this.dm.getSystem())
+      FunctionStatsFactory.getFunctionStats(functionObject.getId(), this.dm.getSystem())
           .incResultsReturned();
     }
 
@@ -134,9 +134,9 @@ public class DistributedRegionFunctionResultSender implements InternalResultSend
       }
       // incrementing result sent stats.
       if (this.dm == null) {
-        FunctionStats.getFunctionStats(functionObject.getId()).incResultsReceived();
+        FunctionStatsFactory.getFunctionStats(functionObject.getId()).incResultsReceived();
       } else {
-        FunctionStats.getFunctionStats(functionObject.getId(), this.dm.getSystem())
+        FunctionStatsFactory.getFunctionStats(functionObject.getId(), this.dm.getSystem())
             .incResultsReceived();
       }
     }
@@ -155,7 +155,7 @@ public class DistributedRegionFunctionResultSender implements InternalResultSend
     } else {
       if (isLocal) {
         this.rc.addResult(dm.getDistributionManagerId(), oneResult);
-        FunctionStats.getFunctionStats(functionObject.getId(), this.dm.getSystem())
+        FunctionStatsFactory.getFunctionStats(functionObject.getId(), this.dm.getSystem())
             .incResultsReceived();
       } else {
         try {
@@ -167,7 +167,7 @@ public class DistributedRegionFunctionResultSender implements InternalResultSend
         }
       }
       // incrementing result sent stats.
-      FunctionStats.getFunctionStats(functionObject.getId(), this.dm.getSystem())
+      FunctionStatsFactory.getFunctionStats(functionObject.getId(), this.dm.getSystem())
           .incResultsReturned();
     }
   }
@@ -184,9 +184,9 @@ public class DistributedRegionFunctionResultSender implements InternalResultSend
       if (isLocal) {
         this.rc.addResult(memberID, oneResult);
         if (this.dm == null) {
-          FunctionStats.getFunctionStats(functionObject.getId()).incResultsReceived();
+          FunctionStatsFactory.getFunctionStats(functionObject.getId()).incResultsReceived();
         } else {
-          FunctionStats.getFunctionStats(functionObject.getId(), this.dm.getSystem())
+          FunctionStatsFactory.getFunctionStats(functionObject.getId(), this.dm.getSystem())
               .incResultsReceived();
         }
       } else {
@@ -200,9 +200,9 @@ public class DistributedRegionFunctionResultSender implements InternalResultSend
       }
       // incrementing result sent stats.
       if (this.dm == null) {
-        FunctionStats.getFunctionStats(functionObject.getId()).incResultsReturned();
+        FunctionStatsFactory.getFunctionStats(functionObject.getId()).incResultsReturned();
       } else {
-        FunctionStats.getFunctionStats(functionObject.getId(), this.dm.getSystem())
+        FunctionStatsFactory.getFunctionStats(functionObject.getId(), this.dm.getSystem())
             .incResultsReturned();
       }
     }

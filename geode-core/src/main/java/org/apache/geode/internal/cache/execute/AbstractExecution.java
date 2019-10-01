@@ -314,7 +314,7 @@ public abstract class AbstractExecution implements InternalExecution {
   private void executeFunctionLocally(final Function<?> fn, final FunctionContext cx,
       final ResultSender sender, DistributionManager dm) {
 
-    FunctionStats stats = FunctionStats.getFunctionStats(fn.getId(), dm.getSystem());
+    FunctionStats stats = FunctionStatsFactory.getFunctionStats(fn.getId(), dm.getSystem());
 
     long start = stats.startTime();
     stats.startFunctionExecution(fn.hasResult());
@@ -481,7 +481,7 @@ public abstract class AbstractExecution implements InternalExecution {
 
   private void handleException(Throwable functionException, final Function fn,
       final ResultSender sender, DistributionManager dm, long startTime) {
-    FunctionStats stats = FunctionStats.getFunctionStats(fn.getId(), dm.getSystem());
+    FunctionStats stats = FunctionStatsFactory.getFunctionStats(fn.getId(), dm.getSystem());
 
     if (logger.isDebugEnabled()) {
       logger.debug("Exception occurred on local node while executing Function: {}", fn.getId(),

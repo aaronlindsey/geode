@@ -39,6 +39,7 @@ import org.apache.geode.internal.cache.TXStateProxy;
 import org.apache.geode.internal.cache.execute.AbstractExecution;
 import org.apache.geode.internal.cache.execute.FunctionContextImpl;
 import org.apache.geode.internal.cache.execute.FunctionStats;
+import org.apache.geode.internal.cache.execute.FunctionStatsFactory;
 import org.apache.geode.internal.cache.execute.InternalFunctionExecutionService;
 import org.apache.geode.internal.cache.execute.InternalFunctionInvocationTargetException;
 import org.apache.geode.internal.cache.execute.InternalFunctionService;
@@ -192,7 +193,7 @@ public class ExecuteFunction66 extends BaseCommand {
         functionObject = (Function) function;
       }
 
-      FunctionStats stats = FunctionStats.getFunctionStats(functionObject.getId());
+      FunctionStats stats = FunctionStatsFactory.getFunctionStats(functionObject.getId());
 
       // check if the caller is authorized to do this operation on server
       functionObject.getRequiredPermissions(null, args).forEach(securityService::authorize);
