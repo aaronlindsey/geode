@@ -26,8 +26,11 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Collection;
 import java.util.List;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -42,6 +45,7 @@ import org.apache.geode.cache.execute.Execution;
 import org.apache.geode.cache.execute.Function;
 import org.apache.geode.cache.execute.FunctionService;
 import org.apache.geode.internal.AvailablePortHelper;
+import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.management.internal.cli.functions.ListFunctionFunction;
 import org.apache.geode.metrics.MetricsPublishingService;
 import org.apache.geode.metrics.SimpleMetricsPublishingService;
@@ -54,10 +58,16 @@ import org.apache.geode.test.junit.rules.gfsh.GfshRule;
 public class FunctionExecutionsTimerSingleServerExecutionTest {
 
   private int serverPort;
+  private int jmxRmiPort;
+  private Path serverFolder;
+  private Path serviceJarPath;
+  private Path functionHelpersJarPath;
   private ClientCache clientCache;
   private Pool serverPool;
   private String connectCommand;
-  private String startServerCommand;
+  private String startServerCommandWithStatsEnabled;
+  private String startServerCommandWithStatsDisabled;
+  private String startServerCommandWithTimeStatsDisabled;
   private String stopServerCommand;
 
   @Rule
@@ -74,46 +84,35 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
     int[] ports = AvailablePortHelper.getRandomAvailableTCPPorts(2);
 
     serverPort = ports[0];
-    int jmxRmiPort = ports[1];
+    jmxRmiPort = ports[1];
 
-    Path serverFolder = temporaryFolder.newFolder("server").toPath().toAbsolutePath();
+    serverFolder = temporaryFolder.newFolder("server").toPath().toAbsolutePath();
 
-    Path serviceJarPath = serviceJarRule.createJarFor("services.jar",
+    serviceJarPath = serviceJarRule.createJarFor("services.jar",
         MetricsPublishingService.class, SimpleMetricsPublishingService.class);
 
-    Path functionHelpersJarPath =
+    functionHelpersJarPath =
         temporaryFolder.getRoot().toPath().resolve("function-helpers.jar").toAbsolutePath();
     writeJarFromClasses(functionHelpersJarPath.toFile(), FunctionToTime.class,
         GetFunctionExecutionTimerValues.class, ExecutionsTimerValues.class);
 
-    startServerCommand = String.join(" ",
-        "start server",
-        "--name=server",
-        "--dir=" + serverFolder,
-        "--server-port=" + serverPort,
-        "--classpath=" + serviceJarPath + pathSeparatorChar + functionHelpersJarPath,
-        "--J=-Dgemfire.enable-cluster-config=true",
-        "--J=-Dgemfire.jmx-manager=true",
-        "--J=-Dgemfire.jmx-manager-start=true",
-        "--J=-Dgemfire.jmx-manager-port=" + jmxRmiPort);
+    startServerCommandWithStatsEnabled = startServerCommand(false, true);
+    startServerCommandWithStatsDisabled = startServerCommand(true, true);
+    startServerCommandWithTimeStatsDisabled = startServerCommand(false, false);
 
     stopServerCommand = "stop server --dir=" + serverFolder;
     connectCommand = "connect --jmx-manager=localhost[" + jmxRmiPort + "]";
-
-    gfshRule.execute(startServerCommand);
-
-    createClientAndPool();
   }
 
   @After
   public void tearDown() {
-    closeClientAndPool();
-
-    gfshRule.execute(stopServerCommand);
+    stopServer();
   }
 
   @Test
   public void timersNotRegisteredIfOnlyInternalFunctionsExecuted() {
+    startServerWithStatsEnabled();
+
     executeInternalFunction();
 
     assertThat(getAllExecutionsTimerValues())
@@ -123,6 +122,8 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
 
   @Test
   public void timersNotRegisteredIfFunctionDeployedButNotExecuted() {
+    startServerWithStatsEnabled();
+
     deployFunction(FunctionToTime.class);
 
     assertThat(getAllExecutionsTimerValues())
@@ -131,7 +132,22 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
   }
 
   @Test
+  public void timersNotRegisteredOnClient() {
+    startServerWithStatsEnabled();
+
+    executeFunctionThatSucceeds(new FunctionToTime(), Duration.ofMillis(1));
+
+    // Currently there is no way to get a client's registry via public API
+    MeterRegistry registry = ((InternalCache) clientCache).getMeterRegistry();
+    Collection<Timer> timers = registry.find("geode.function.executions").timers();
+    assertThat(timers)
+        .as("Function executions timers on client")
+        .isEmpty();
+  }
+
+  @Test
   public void timersRegisteredIfFunctionDeployedAndThenExecuted() {
+    startServerWithStatsEnabled();
     deployFunction(FunctionToTime.class);
 
     Duration functionDuration = Duration.ofSeconds(1);
@@ -143,7 +159,19 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
   }
 
   @Test
+  public void timersRegisteredIfStatsDisabled() {
+    startServerWithStatsDisabled();
+
+    executeFunctionThatSucceeds(new FunctionToTime(), Duration.ofMillis(1));
+
+    assertThat(getAllExecutionsTimerValues())
+        .as("Function executions timers on server")
+        .hasSize(2);
+  }
+
+  @Test
   public void timersUnregisteredIfServerRestarts() {
+    startServerWithStatsEnabled();
     executeFunctionThatSucceeds(new FunctionToTime(), Duration.ofMillis(1));
 
     restartServer();
@@ -155,6 +183,25 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
 
   @Test
   public void successTimerRecordsCountAndTotalTimeIfFunctionSucceeds() {
+    startServerWithStatsEnabled();
+    FunctionToTime function = new FunctionToTime();
+    Duration functionDuration = Duration.ofSeconds(1);
+    executeFunctionThatSucceeds(function, functionDuration);
+
+    ExecutionsTimerValues successTimerValues = getSuccessTimerValues(function.getId());
+
+    assertThat(successTimerValues.count)
+        .as("Successful function executions count")
+        .isEqualTo(1);
+
+    assertThat(successTimerValues.totalTime)
+        .as("Successful function executions total time")
+        .isGreaterThan(functionDuration.toNanos());
+  }
+
+  @Test
+  public void successTimerRecordsCountAndTotalTimeIfTimeStatsDisabled() {
+    startServerWithTimeStatsDisabled();
     FunctionToTime function = new FunctionToTime();
     Duration functionDuration = Duration.ofSeconds(1);
     executeFunctionThatSucceeds(function, functionDuration);
@@ -172,6 +219,7 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
 
   @Test
   public void failureTimerRecordsCountAndTotalTimeIfFunctionThrows() {
+    startServerWithStatsEnabled();
     FunctionToTime function = new FunctionToTime();
     Duration functionDuration = Duration.ofSeconds(1);
     executeFunctionThatThrows(function, functionDuration);
@@ -187,8 +235,26 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
         .isGreaterThan(functionDuration.toNanos());
   }
 
+  private String startServerCommand(boolean statsDisabled, boolean enableTimeStatistics) {
+    return String.join(" ",
+        "start server",
+        "--name=server",
+        "--dir=" + serverFolder,
+        "--server-port=" + serverPort,
+        "--classpath=" + serviceJarPath + pathSeparatorChar + functionHelpersJarPath,
+        "--enable-time-statistics=" + enableTimeStatistics,
+        "--J=-Dgemfire.enable-cluster-config=true",
+        "--J=-Dgemfire.jmx-manager=true",
+        "--J=-Dgemfire.jmx-manager-start=true",
+        "--J=-Dgemfire.jmx-manager-port=" + jmxRmiPort,
+        "--J=-Dgemfire.statsDisabled=" + statsDisabled);
+  }
+
   private void createClientAndPool() {
-    clientCache = new ClientCacheFactory().addPoolServer("localhost", serverPort).create();
+    clientCache = new ClientCacheFactory()
+        .addPoolServer("localhost", serverPort)
+        .create();
+
     serverPool = PoolManager.createFactory()
         .addServer("localhost", serverPort)
         .create("server-pool");
@@ -199,10 +265,31 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
     clientCache.close();
   }
 
-  private void restartServer() {
+  private void stopServer() {
     closeClientAndPool();
-    gfshRule.execute(connectCommand, stopServerCommand, startServerCommand);
+    gfshRule.execute(stopServerCommand);
+  }
+
+  private void startServerWithStatsEnabled() {
+    startServer(startServerCommandWithStatsEnabled);
+  }
+
+  private void startServerWithStatsDisabled() {
+    startServer(startServerCommandWithStatsDisabled);
+  }
+
+  private void startServerWithTimeStatsDisabled() {
+    startServer(startServerCommandWithTimeStatsDisabled);
+  }
+
+  private void startServer(String command) {
+    gfshRule.execute(command);
     createClientAndPool();
+  }
+
+  private void restartServer() {
+    stopServer();
+    startServerWithStatsEnabled();
   }
 
   @SuppressWarnings("SameParameterValue")
@@ -309,5 +396,4 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
 
     return results.get(0);
   }
-
 }
