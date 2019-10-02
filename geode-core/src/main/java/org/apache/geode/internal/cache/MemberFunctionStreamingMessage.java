@@ -46,8 +46,8 @@ import org.apache.geode.distributed.internal.ReplyProcessor21;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.InternalDataSerializer;
 import org.apache.geode.internal.cache.execute.FunctionContextImpl;
-import org.apache.geode.internal.cache.execute.FunctionStats;
-import org.apache.geode.internal.cache.execute.FunctionStatsFactory;
+import org.apache.geode.internal.cache.execute.metrics.FunctionStats;
+import org.apache.geode.internal.cache.execute.metrics.FunctionStatsFactory;
 import org.apache.geode.internal.cache.execute.MemberFunctionResultSender;
 import org.apache.geode.internal.cache.execute.MultiRegionFunctionContextImpl;
 import org.apache.geode.internal.logging.LogService;
@@ -165,7 +165,7 @@ public class MemberFunctionStreamingMessage extends DistributionMessage
     TXStateProxy tx = null;
     InternalCache cache = dm.getCache();
 
-    long start = stats.startTime();
+    long start = stats.getTime();
     try {
       tx = prepForTransaction(dm);
       ResultSender resultSender = new MemberFunctionResultSender(dm, this, this.functionObject);
@@ -190,7 +190,7 @@ public class MemberFunctionStreamingMessage extends DistributionMessage
       FunctionContextImpl context = new MultiRegionFunctionContextImpl(cache,
           this.functionObject.getId(), this.args, resultSender, regions, isReExecute);
 
-      start = stats.startTime();
+      start = stats.getTime();
       stats.startFunctionExecution(this.functionObject.hasResult());
       if (logger.isDebugEnabled()) {
         logger.debug("Executing Function: {} on remote member with context: {}",

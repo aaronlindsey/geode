@@ -79,8 +79,8 @@ import org.apache.geode.internal.cache.PartitionedRegion.BucketLock;
 import org.apache.geode.internal.cache.PartitionedRegion.SizeEntry;
 import org.apache.geode.internal.cache.backup.BackupService;
 import org.apache.geode.internal.cache.execute.BucketMovedException;
-import org.apache.geode.internal.cache.execute.FunctionStats;
-import org.apache.geode.internal.cache.execute.FunctionStatsFactory;
+import org.apache.geode.internal.cache.execute.metrics.FunctionStats;
+import org.apache.geode.internal.cache.execute.metrics.FunctionStatsFactory;
 import org.apache.geode.internal.cache.execute.PartitionedRegionFunctionResultSender;
 import org.apache.geode.internal.cache.execute.RegionFunctionContextImpl;
 import org.apache.geode.internal.cache.partitioned.Bucket;
@@ -2989,7 +2989,7 @@ public class PartitionedRegionDataStore implements HasCachePerfStats {
             bucketSet, resultSender, isReExecute);
 
     FunctionStats stats = FunctionStatsFactory.getFunctionStats(function.getId(), dm.getSystem());
-    long start = stats.startTime();
+    long start = stats.getTime();
     stats.startFunctionExecution(function.hasResult());
     try {
       if (logger.isDebugEnabled()) {

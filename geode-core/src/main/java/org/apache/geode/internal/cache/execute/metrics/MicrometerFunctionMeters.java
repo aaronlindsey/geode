@@ -12,52 +12,38 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package org.apache.geode.internal.cache.execute;
+package org.apache.geode.internal.cache.execute.metrics;
 
 import static java.lang.Boolean.FALSE;
 import static java.lang.Boolean.TRUE;
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
-import java.util.function.LongSupplier;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 
 import org.apache.geode.annotations.VisibleForTesting;
-import org.apache.geode.internal.NanoTimer;
 
-public class MicrometerFunctionStats implements FunctionStats {
+public class MicrometerFunctionMeters implements FunctionExecutionsTimer {
 
-  private final LongSupplier clock;
   private final MeterRegistry meterRegistry;
   private final Timer successTimer;
   private final Timer failureTimer;
 
-  MicrometerFunctionStats(String functionId, MeterRegistry meterRegistry) {
-    this(functionId, NanoTimer::getTime, meterRegistry);
+  MicrometerFunctionMeters(String functionId, MeterRegistry meterRegistry) {
+    this(functionId, meterRegistry, MicrometerFunctionMeters::registerSuccessTimer, MicrometerFunctionMeters::registerFailureTimer);
   }
 
   @VisibleForTesting
-  MicrometerFunctionStats(String functionId, LongSupplier clock, MeterRegistry meterRegistry) {
-    this(functionId, clock, meterRegistry, MicrometerFunctionStats::registerSuccessTimer, MicrometerFunctionStats::registerFailureTimer);
-  }
-
-  @VisibleForTesting
-  MicrometerFunctionStats(String functionId, LongSupplier clock, MeterRegistry meterRegistry, BiFunction<String, MeterRegistry, Timer> registerSuccessTimerFunction, BiFunction<String, MeterRegistry, Timer> registerFailureTimerFunction) {
+  MicrometerFunctionMeters(String functionId, MeterRegistry meterRegistry, BiFunction<String, MeterRegistry, Timer> registerSuccessTimerFunction, BiFunction<String, MeterRegistry, Timer> registerFailureTimerFunction) {
     Objects.requireNonNull(meterRegistry);
 
-    this.clock = clock;
     this.meterRegistry = meterRegistry;
 
     successTimer = registerSuccessTimerFunction.apply(functionId, meterRegistry);
     failureTimer = registerFailureTimerFunction.apply(functionId, meterRegistry);
-  }
-
-  @Override
-  public long startTime() {
-    return clock.getAsLong();
   }
 
   @Override
@@ -70,17 +56,12 @@ public class MicrometerFunctionStats implements FunctionStats {
   }
 
   @Override
-  public void endFunctionExecution(long start, boolean haveResult) {
-    long elapsed = clock.getAsLong() - start;
-
-    successTimer.record(elapsed, NANOSECONDS);
-  }
-
-  @Override
-  public void endFunctionExecutionWithException(long startTime, boolean haveResult) {
-    long elapsed = clock.getAsLong() - startTime;
-
-    failureTimer.record(elapsed, NANOSECONDS);
+  public void record(long elapsed, TimeUnit timeUnit, boolean succeeded) {
+    if (succeeded) {
+      successTimer.record(elapsed, timeUnit);
+    } else {
+      failureTimer.record(elapsed, timeUnit);
+    }
   }
 
   private static Timer registerSuccessTimer(String functionId, MeterRegistry meterRegistry) {

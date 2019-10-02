@@ -100,8 +100,8 @@ import org.apache.geode.internal.cache.eviction.EvictableEntry;
 import org.apache.geode.internal.cache.execute.DistributedRegionFunctionExecutor;
 import org.apache.geode.internal.cache.execute.DistributedRegionFunctionResultSender;
 import org.apache.geode.internal.cache.execute.DistributedRegionFunctionResultWaiter;
-import org.apache.geode.internal.cache.execute.FunctionStats;
-import org.apache.geode.internal.cache.execute.FunctionStatsFactory;
+import org.apache.geode.internal.cache.execute.metrics.FunctionStats;
+import org.apache.geode.internal.cache.execute.metrics.FunctionStatsFactory;
 import org.apache.geode.internal.cache.execute.LocalResultCollector;
 import org.apache.geode.internal.cache.execute.RegionFunctionContextImpl;
 import org.apache.geode.internal.cache.execute.ServerToClientFunctionResultSender;
@@ -3790,7 +3790,7 @@ public class DistributedRegion extends LocalRegion implements InternalDistribute
     final RegionFunctionContextImpl context = new RegionFunctionContextImpl(cache, function.getId(),
         this, args, filter, null, null, resultSender, isReExecute);
     FunctionStats stats = FunctionStatsFactory.getFunctionStats(function.getId(), dm.getSystem());
-    long start = stats.startTime();
+    long start = stats.getTime();
     stats.startFunctionExecution(function.hasResult());
     try {
       function.execute(context);

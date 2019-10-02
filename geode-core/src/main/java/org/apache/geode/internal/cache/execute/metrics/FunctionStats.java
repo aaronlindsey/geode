@@ -12,7 +12,11 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package org.apache.geode.internal.cache.execute;
+package org.apache.geode.internal.cache.execute.metrics;
+
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+
+import java.util.concurrent.TimeUnit;
 
 public interface FunctionStats {
 
@@ -79,7 +83,7 @@ public interface FunctionStats {
    *
    * @return the current time (ns)
    */
-  default long startTime() {
+  default long getTime() {
     return 0;
   }
 
@@ -95,12 +99,17 @@ public interface FunctionStats {
    * Increments the "functionExecutionsCompleted" and "functionExecutionCompleteProcessingTime"
    * stats.
    *
-   * @param start The start of the functionExecution (which is decremented from the current
+   * @param startTime The start of the functionExecution (which is decremented from the current
    *        time to determine the function Execution processing time).
    * @param haveResult haveResult=true then update the _functionExecutionHasResultRunningId and
    *        _functionExecutionHasResultCompleteProcessingTimeId
    */
-  default void endFunctionExecution(long start, boolean haveResult) {
+  default void endFunctionExecution(long startTime, boolean haveResult) {
+    long elapsed = getTime() - startTime;
+    endFunctionExecution(elapsed, NANOSECONDS, haveResult);
+  }
+
+  default void endFunctionExecution(long elapsed, TimeUnit timeUnit, boolean haveResult) {
 
   }
 
@@ -109,6 +118,11 @@ public interface FunctionStats {
    * decrement "_functionExecutionHasResultRunningId"
    */
   default void endFunctionExecutionWithException(long startTime, boolean haveResult) {
+    long elapsed = getTime() - startTime;
+    endFunctionExecutionWithException(elapsed, NANOSECONDS, haveResult);
+  }
+
+  default void endFunctionExecutionWithException(long elapsed, TimeUnit timeUnit, boolean haveResult) {
 
   }
 }

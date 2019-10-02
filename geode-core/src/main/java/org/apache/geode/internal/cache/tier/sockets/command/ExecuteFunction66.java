@@ -38,8 +38,8 @@ import org.apache.geode.internal.cache.TXManagerImpl;
 import org.apache.geode.internal.cache.TXStateProxy;
 import org.apache.geode.internal.cache.execute.AbstractExecution;
 import org.apache.geode.internal.cache.execute.FunctionContextImpl;
-import org.apache.geode.internal.cache.execute.FunctionStats;
-import org.apache.geode.internal.cache.execute.FunctionStatsFactory;
+import org.apache.geode.internal.cache.execute.metrics.FunctionStats;
+import org.apache.geode.internal.cache.execute.metrics.FunctionStatsFactory;
 import org.apache.geode.internal.cache.execute.InternalFunctionExecutionService;
 import org.apache.geode.internal.cache.execute.InternalFunctionInvocationTargetException;
 import org.apache.geode.internal.cache.execute.InternalFunctionService;
@@ -229,7 +229,7 @@ public class ExecuteFunction66 extends BaseCommand {
       int earlierClientReadTimeout = handshake.getClientReadTimeout();
       handshake.setClientReadTimeout(functionTimeout);
 
-      long statStartTime = stats.startTime();
+      long statStartTime = stats.getTime();
       try {
         if (logger.isDebugEnabled()) {
           logger.debug("Executing Function on Server: {} with context: {}", serverConnection,
@@ -316,7 +316,7 @@ public class ExecuteFunction66 extends BaseCommand {
   private void executeFunctionLocally(final Function fn, final FunctionContext cx,
       final ServerToClientFunctionResultSender65 sender, DistributionManager dm,
       final FunctionStats stats) throws IOException {
-    long startExecution = stats.startTime();
+    long startExecution = stats.getTime();
     stats.startFunctionExecution(fn.hasResult());
 
     if (fn.hasResult()) {

@@ -42,6 +42,8 @@ import org.apache.geode.distributed.internal.ClusterDistributionManager;
 import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
+import org.apache.geode.internal.cache.execute.metrics.FunctionStats;
+import org.apache.geode.internal.cache.execute.metrics.FunctionStatsFactory;
 import org.apache.geode.internal.cache.tier.sockets.ServerConnection;
 import org.apache.geode.internal.logging.LogService;
 
@@ -316,7 +318,7 @@ public abstract class AbstractExecution implements InternalExecution {
 
     FunctionStats stats = FunctionStatsFactory.getFunctionStats(fn.getId(), dm.getSystem());
 
-    long start = stats.startTime();
+    long start = stats.getTime();
     stats.startFunctionExecution(fn.hasResult());
     try {
       if (logger.isDebugEnabled()) {

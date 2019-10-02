@@ -27,8 +27,8 @@ import org.apache.geode.cache.operations.ExecuteFunctionOperationContext;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.execute.FunctionContextImpl;
-import org.apache.geode.internal.cache.execute.FunctionStats;
-import org.apache.geode.internal.cache.execute.FunctionStatsFactory;
+import org.apache.geode.internal.cache.execute.metrics.FunctionStats;
+import org.apache.geode.internal.cache.execute.metrics.FunctionStatsFactory;
 import org.apache.geode.internal.cache.execute.InternalFunctionExecutionService;
 import org.apache.geode.internal.cache.execute.InternalFunctionInvocationTargetException;
 import org.apache.geode.internal.cache.execute.InternalFunctionService;
@@ -167,7 +167,7 @@ public class ExecuteFunction extends BaseCommand {
       int earlierClientReadTimeout = handshake.getClientReadTimeout();
       handshake.setClientReadTimeout(0);
 
-      long startExecution = stats.startTime();
+      long startExecution = stats.getTime();
       stats.startFunctionExecution(functionObject.hasResult());
       try {
         if (logger.isDebugEnabled()) {

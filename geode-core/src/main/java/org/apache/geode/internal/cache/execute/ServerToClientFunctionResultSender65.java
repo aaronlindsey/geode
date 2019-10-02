@@ -26,6 +26,7 @@ import org.apache.geode.cache.operations.ExecuteFunctionOperationContext;
 import org.apache.geode.cache.query.QueryInvalidException;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
+import org.apache.geode.internal.cache.execute.metrics.FunctionStatsFactory;
 import org.apache.geode.internal.cache.tier.Command;
 import org.apache.geode.internal.cache.tier.sockets.BaseCommand;
 import org.apache.geode.internal.cache.tier.sockets.ChunkedMessage;

@@ -12,8 +12,10 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package org.apache.geode.internal.cache.execute;
+package org.apache.geode.internal.cache.execute.metrics;
 
+import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 
 import org.apache.geode.StatisticDescriptor;
@@ -24,24 +26,32 @@ import org.apache.geode.StatisticsTypeFactory;
 import org.apache.geode.annotations.Immutable;
 import org.apache.geode.annotations.VisibleForTesting;
 import org.apache.geode.distributed.internal.DistributionStats;
+import org.apache.geode.distributed.internal.InternalDistributedSystem;
+import org.apache.geode.internal.NanoTimer;
+import org.apache.geode.internal.cache.execute.metrics.FunctionServiceStats;
+import org.apache.geode.internal.cache.execute.metrics.FunctionStats;
 import org.apache.geode.internal.statistics.DummyStatisticsImpl;
 import org.apache.geode.internal.statistics.StatisticsTypeFactoryImpl;
 
-public class FunctionServiceStats {
+public class LegacyFunctionStats implements FunctionStats {
 
-  /** The <code>StatisticsType</code> of the statistics */
+  private static final String statName = "FunctionStatistics";
+
+  /**
+   * The <code>StatisticsType</code> of the statistics
+   */
   @Immutable
   private static final StatisticsType _type;
 
   /**
-   * Total number of completed function.execute() calls (aka invocations of a function) per VM. Name
-   * of the function executions completed statistic
+   * Total number of completed function.execute() calls (aka invocations of a individual
+   * function)Name of the function executions cimpleted statistic
    */
   private static final String FUNCTION_EXECUTIONS_COMPLETED = "functionExecutionsCompleted";
 
   /**
-   * Total time consumed for all completed invocations Name of the function executions completed
-   * processing time statistic
+   * Total time consumed for all completed invocations of a individual function. Name of the
+   * function executions completed processing time statistic
    */
   private static final String FUNCTION_EXECUTIONS_COMPLETED_PROCESSING_TIME =
       "functionExecutionsCompletedProcessingTime";
@@ -77,64 +87,82 @@ public class FunctionServiceStats {
   private static final String FUNCTION_EXECUTIONS_HASRESULT_RUNNING =
       "functionExecutionsHasResultRunning";
 
-  /**
-   * Total number of Exceptions Occurredwhile executing function Name of the functionExecution
-   * exceptions statistic
-   */
-  private static final String FUNCTION_EXECUTION_EXCEPTIONS = "functionExecutionsExceptions";
 
   /**
    * Total number of results sent to the ResultCollector Name of the results returned statistic
    */
   private static final String RESULTS_RECEIVED = "resultsReceived";
 
+  /**
+   * Total number of Exceptions Occurred while executing function Name of the functionExecution
+   * exceptions statistic
+   */
+  private static final String FUNCTION_EXECUTION_EXCEPTIONS = "functionExecutionsExceptions";
 
-  /** Id of the FUNCTION_EXECUTIONS_COMPLETED statistic */
+  /**
+   * Id of the FUNCTION_EXECUTIONS_COMPLETED statistic
+   */
   private static final int _functionExecutionsCompletedId;
 
-  /** Id of the FUNCTION_EXECUTIONS_COMPLETED_PROCESSING_TIME statistic */
+  /**
+   * Id of the FUNCTION_EXECUTIONS_COMPLETED_PROCESSING_TIME statistic
+   */
   private static final int _functionExecutionsCompletedProcessingTimeId;
 
-  /** Id of the FUNCTION_EXECUTIONS_RUNNING statistic */
+  /**
+   * Id of the FUNCTION_EXECUTIONS_RUNNING statistic
+   */
   private static final int _functionExecutionsRunningId;
 
-  /** Id of the RESULTS_SENT_TO_RESULTCOLLECTOR statistic */
+  /**
+   * Id of the RESULTS_SENT_TO_RESULTCOLLECTOR statistic
+   */
   private static final int _resultsSentToResultCollectorId;
 
-  /** Id of the FUNCTION_EXECUTIONS_CALL statistic */
+  /**
+   * Id of the FUNCTION_EXECUTIONS_CALL statistic
+   */
   private static final int _functionExecutionCallsId;
 
-  /** Id of the FUNCTION_EXECUTION_HASRESULT_COMPLETED_TIME statistic */
+  /**
+   * Id of the FUNCTION_EXECUTION_HASRESULT_COMPLETED_TIME statistic
+   */
   private static final int _functionExecutionsHasResultCompletedProcessingTimeId;
 
-  /** Id of the FUNCTION_EXECUTIONS_HASRESULT_RUNNING statistic */
+  /**
+   * Id of the FUNCTION_EXECUTIONS_HASRESULT_RUNNING statistic
+   */
   private static final int _functionExecutionsHasResultRunningId;
 
-  /** Id of the FUNCTION_EXECUTIONS_EXCEPTIONS statistic */
-  private static final int _functionExecutionExceptions;
-
-  /** Id of the RESULTS_RECEIVED statistic */
+  /**
+   * Id of the RESULTS_RECEIVED statistic
+   */
   private static final int _resultsReceived;
 
+  /**
+   * Id of the FUNCTION_EXECUTIONS_EXCEPTIONS statistic
+   */
+  private static final int _functionExecutionExceptions;
 
   /**
    * Static initializer to create and initialize the <code>StatisticsType</code>
    */
   static {
-    String statName = "FunctionServiceStatistics";
-    String statDescription =
-        "This is the aggregate Function Execution Stats (for all function Executions)";
+
+    String statDescription = "This is the stats for the individual Function's Execution";
+
     StatisticsTypeFactory f = StatisticsTypeFactoryImpl.singleton();
 
     _type = f.createType(statName, statDescription,
         new StatisticDescriptor[] {f.createIntCounter(FUNCTION_EXECUTIONS_COMPLETED,
-            "Total number of completed function.execute() calls", "operations"),
+            "Total number of completed function.execute() calls for given function", "operations"),
 
             f.createLongCounter(FUNCTION_EXECUTIONS_COMPLETED_PROCESSING_TIME,
-                "Total time consumed for all completed invocations", "nanoseconds"),
+                "Total time consumed for all completed invocations of the given function",
+                "nanoseconds"),
 
-            f.createIntGauge(FUNCTION_EXECUTIONS_RUNNING, "number of currently running invocations",
-                "operations"),
+            f.createIntGauge(FUNCTION_EXECUTIONS_RUNNING,
+                "number of currently running invocations of the given function", "operations"),
 
             f.createIntCounter(RESULTS_SENT_TO_RESULTCOLLECTOR,
                 "Total number of results sent to the ResultCollector", "operations"),
@@ -143,19 +171,20 @@ public class FunctionServiceStats {
                 "Total number of results received and passed to the ResultCollector", "operations"),
 
             f.createIntCounter(FUNCTION_EXECUTION_CALLS,
-                "Total number of FunctionService.execute() calls", "operations"),
+                "Total number of FunctionService.execute() calls for given function", "operations"),
 
             f.createLongCounter(FUNCTION_EXECUTIONS_HASRESULT_COMPLETED_PROCESSING_TIME,
-                "Total time consumed for all completed execute() calls where hasResult() returns true.",
+                "Total time consumed for all completed given function.execute() calls where hasResult() returns true.",
                 "nanoseconds"),
 
             f.createIntGauge(FUNCTION_EXECUTIONS_HASRESULT_RUNNING,
                 "A gauge indicating the number of currently active execute() calls for functions where hasResult() returns true.",
                 "operations"),
+
             f.createIntCounter(FUNCTION_EXECUTION_EXCEPTIONS,
                 "Total number of Exceptions Occurred while executing function", "operations"),
-
         });
+
     // Initialize id fields
     _functionExecutionsCompletedId = _type.nameToId(FUNCTION_EXECUTIONS_COMPLETED);
     _functionExecutionsCompletedProcessingTimeId =
@@ -170,14 +199,18 @@ public class FunctionServiceStats {
     _resultsReceived = _type.nameToId(RESULTS_RECEIVED);
   }
 
-  // //////////////////// Instance Fields //////////////////////
-
-  /** The <code>Statistics</code> instance to which most behavior is delegated */
+  /**
+   * The <code>Statistics</code> instance to which most behavior is delegated
+   */
   private final Statistics _stats;
-
+  private final FunctionServiceStats aggregateStats;
   private final LongSupplier clock;
+  private final BooleanSupplier enableClockStats;
 
-  // ///////////////////// Constructors ///////////////////////
+  LegacyFunctionStats() {
+    this(new DummyStatisticsImpl(_type, null, 0), FunctionServiceStats.createDummy(),
+        NanoTimer::getTime, () -> DistributionStats.enableClockStats);
+  }
 
   /**
    * Constructor.
@@ -186,185 +219,64 @@ public class FunctionServiceStats {
    *        instance
    * @param name The name of the <code>Statistics</code>
    */
-  public FunctionServiceStats(StatisticsFactory factory, String name) {
-    this(factory, name, DistributionStats::getStatTime);
+  LegacyFunctionStats(StatisticsFactory factory, String name) {
+    this(factory.createAtomicStatistics(_type, name),
+        ((InternalDistributedSystem) factory).getFunctionServiceStats(),
+        NanoTimer::getTime, () -> DistributionStats.enableClockStats);
   }
 
   @VisibleForTesting
-  public FunctionServiceStats(StatisticsFactory factory, String textId, LongSupplier clock) {
-    _stats = factory == null ? null : factory.createAtomicStatistics(_type, textId);
+  LegacyFunctionStats(Statistics stats, FunctionServiceStats aggregateStats,
+        LongSupplier clock, BooleanSupplier enableClockStats) {
+    this._stats = stats;
+    this.aggregateStats = aggregateStats;
     this.clock = clock;
+    this.enableClockStats = enableClockStats;
   }
 
-  private FunctionServiceStats() {
-    this._stats = new DummyStatisticsImpl(this._type, null, 0);
-    clock = DistributionStats::getStatTime;
-  }
-
-  static FunctionServiceStats createDummy() {
-    return new FunctionServiceStats();
-  }
-
-  // /////////////////// Instance Methods /////////////////////
-
-  private long getTime() {
-    return clock.getAsLong();
-  }
-
-  /**
-   * Closes the <code>FunctionServiceStats</code>.
-   */
+  @Override
   public void close() {
     this._stats.close();
   }
 
-  /**
-   * Returns the current value of the "Total number of completed function.execute() calls" stat.
-   *
-   * @return the current value of the "function Executions completed" stat
-   */
+  @Override
   public int getFunctionExecutionsCompleted() {
     return this._stats.getInt(_functionExecutionsCompletedId);
   }
 
-  /**
-   * Increments the "FunctionExecutionsCompleted" stat.
-   */
-  public void incFunctionExecutionsCompleted() {
-    this._stats.incInt(_functionExecutionsCompletedId, 1);
-  }
-
-  /**
-   * Returns the current value of the "Total time consumed for all completed invocations" stat.
-   *
-   * @return the current value of the "functionExecutionCompleteProcessingTime" stat
-   */
-  public long getFunctionExecutionCompleteProcessingTime() {
-    return this._stats.getLong(_functionExecutionsCompletedProcessingTimeId);
-  }
-
-  /**
-   * Returns the current value of the "number of currently running invocations" stat.
-   *
-   * @return the current value of the "functionExecutionsRunning" stat
-   */
+  @Override
   public int getFunctionExecutionsRunning() {
     return this._stats.getInt(_functionExecutionsRunningId);
   }
 
-  /**
-   * Increments the "FunctionExecutionsRunning" stat.
-   */
-  public void incFunctionExecutionsRunning() {
-    this._stats.incInt(_functionExecutionsRunningId, 1);
-  }
-
-  /**
-   * Returns the current value of the "Total number of results sent to the ResultCollector" stat.
-   *
-   * @return the current value of the "resultsReturned" stat
-   */
-  public int getResultsSentToResultCollector() {
-    return this._stats.getInt(_resultsSentToResultCollectorId);
-  }
-
-  /**
-   * Increments the "ResultsReturnedToResultCollector" stat.
-   */
+  @Override
   public void incResultsReturned() {
     this._stats.incInt(_resultsSentToResultCollectorId, 1);
+    aggregateStats.incResultsReturned();
   }
 
-  /**
-   * Returns the current value of the "Total number of results received and passed to
-   * ResultCollector" stat.
-   *
-   * @return the current value of the "resultsReturned" stat
-   */
+  @Override
   public int getResultsReceived() {
     return this._stats.getInt(_resultsReceived);
   }
 
-  /**
-   * Increments the "ResultsReturnedToResultCollector" stat.
-   */
+  @Override
   public void incResultsReceived() {
     this._stats.incInt(_resultsReceived, 1);
+    aggregateStats.incResultsReceived();
   }
 
-  /**
-   * Returns the current value of the "Total number of FunctionService...execute() calls" stat.
-   *
-   * @return the current value of the "functionExecutionsCall" stat
-   */
+  @Override
   public int getFunctionExecutionCalls() {
     return this._stats.getInt(_functionExecutionCallsId);
   }
 
-  /**
-   * Increments the "FunctionExecutionsCall" stat.
-   */
-  public void incFunctionExecutionCalls() {
-    this._stats.incInt(_functionExecutionCallsId, 1);
+  @Override
+  public long getTime() {
+    return clock.getAsLong();
   }
 
-  /**
-   * Returns the current value of the "Total time consumed for all completed execute() calls where
-   * hasResult() returns true" stat.
-   *
-   * @return the current value of the "functionExecutionHasResultCompleteProcessingTime" stat
-   */
-  public int getFunctionExecutionHasResultCompleteProcessingTime() {
-    return this._stats.getInt(_functionExecutionsHasResultCompletedProcessingTimeId);
-  }
-
-  /**
-   * Returns the current value of the "A gauge indicating the number of currently active execute()
-   * calls for functions where hasResult() returns true" stat.
-   *
-   * @return the current value of the "functionExecutionHasResultRunning" stat
-   */
-  public int getFunctionExecutionHasResultRunning() {
-    return this._stats.getInt(_functionExecutionsHasResultRunningId);
-  }
-
-  /**
-   * Increments the "FunctionExecutionsCall" stat.
-   */
-  public void incFunctionExecutionHasResultRunning() {
-    this._stats.incInt(_functionExecutionsHasResultRunningId, 1);
-  }
-
-  /**
-   * Returns the current value of the "Total number of Exceptions Occurred while executing function"
-   * stat.
-   *
-   * @return the current value of the "functionExecutionHasResultRunning" stat
-   */
-  public int getFunctionExecutionExceptions() {
-    return this._stats.getInt(_functionExecutionExceptions);
-  }
-
-  /**
-   * Increments the "FunctionExecutionsCall" stat.
-   */
-  public void incFunctionExecutionExceptions() {
-    this._stats.incInt(_functionExecutionExceptions, 1);
-  }
-
-  /**
-   * Returns the current time (ns).
-   *
-   * @return the current time (ns)
-   */
-  public long startTime() {
-    return getTime();
-  }
-
-  /**
-   * Increments the "_functionExecutionCallsId" and "_functionExecutionsRunningId" stats and
-   * "_functionExecutionHasResultRunningId" in case of function.hasResult = true..
-   */
+  @Override
   public void startFunctionExecution(boolean haveResult) {
     // Increment number of function execution calls
     this._stats.incInt(_functionExecutionCallsId, 1);
@@ -376,45 +288,37 @@ public class FunctionServiceStats {
       // Increment number of function excution with haveResult = true call
       this._stats.incInt(_functionExecutionsHasResultRunningId, 1);
     }
+    aggregateStats.startFunctionExecution(haveResult);
   }
 
-  /**
-   * Increments the "functionExecutionsCompleted" and "functionExecutionCompleteProcessingTime"
-   * stats.
-   *
-   * @param start The start of the functionExecution (which is decremented from the current time to
-   *        determine the function Execution processing time).
-   * @param haveResult haveResult=true then update the _functionExecutionHasResultRunningId and
-   *        _functionExecutionHasResultCompleteProcessingTimeId
-   */
-  public void endFunctionExecution(long start, boolean haveResult) {
-    long ts = getTime();
-
+  @Override
+  public void endFunctionExecution(long elapsed, TimeUnit timeUnit, boolean haveResult) {
     // Increment number of function executions completed
     this._stats.incInt(_functionExecutionsCompletedId, 1);
 
     // Decrement function Executions running.
     this._stats.incInt(_functionExecutionsRunningId, -1);
 
-    // Increment function execution complete processing time
-    long elapsed = ts - start;
-    this._stats.incLong(_functionExecutionsCompletedProcessingTimeId, elapsed);
+    if (enableClockStats.getAsBoolean()) {
+      // Increment function execution complete processing time
+      this._stats.incLong(_functionExecutionsCompletedProcessingTimeId, elapsed);
+    }
 
     if (haveResult) {
       // Decrement function Executions with haveResult = true running.
       this._stats.incInt(_functionExecutionsHasResultRunningId, -1);
 
-      // Increment function execution with haveResult = true complete processing time
-      this._stats.incLong(_functionExecutionsHasResultCompletedProcessingTimeId, elapsed);
+      if (enableClockStats.getAsBoolean()) {
+        // Increment function execution with haveResult = true complete processing time
+        this._stats.incLong(_functionExecutionsHasResultCompletedProcessingTimeId, elapsed);
+      }
     }
 
+    aggregateStats.endFunctionExecution(elapsed, haveResult);
   }
 
-  /**
-   * Increments the "_functionExecutionException" and decrements "_functionExecutionsRunningId"
-   *
-   */
-  public void endFunctionExecutionWithException(boolean haveResult) {
+  @Override
+  public void endFunctionExecutionWithException(long elapsed, TimeUnit timeUnit, boolean haveResult) {
     // Decrement function Executions running.
     this._stats.incInt(_functionExecutionsRunningId, -1);
 
@@ -425,9 +329,16 @@ public class FunctionServiceStats {
       // Decrement function Executions with haveResult = true running.
       this._stats.incInt(_functionExecutionsHasResultRunningId, -1);
     }
+    aggregateStats.endFunctionExecutionWithException(haveResult);
   }
 
-  public Statistics getStats() {
-    return _stats;
+  @VisibleForTesting
+  int getFunctionExecutionsCompletedProcessingTimeId() {
+    return _functionExecutionsCompletedProcessingTimeId;
+  }
+
+  @VisibleForTesting
+  int getFunctionExecutionsHasResultCompletedProcessingTimeId() {
+    return _functionExecutionsHasResultCompletedProcessingTimeId;
   }
 }

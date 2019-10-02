@@ -26,6 +26,7 @@ import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.internal.cache.ForceReattemptException;
 import org.apache.geode.internal.cache.PartitionedRegion;
+import org.apache.geode.internal.cache.execute.metrics.FunctionStatsFactory;
 import org.apache.geode.internal.cache.partitioned.PartitionedRegionFunctionStreamingMessage;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.serialization.Version;

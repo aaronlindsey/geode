@@ -12,10 +12,13 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package org.apache.geode.internal.cache.execute;
+package org.apache.geode.internal.cache.execute.metrics;
 
-/**
- * Implementation of {@link FunctionStats} that doesn't record any stats.
- */
-public class DummyFunctionStats implements FunctionStats{
+import java.util.concurrent.TimeUnit;
+
+public interface FunctionExecutionsTimer {
+
+  void close();
+
+  void record(long elapsed, TimeUnit timeUnit, boolean succeeded);
 }
