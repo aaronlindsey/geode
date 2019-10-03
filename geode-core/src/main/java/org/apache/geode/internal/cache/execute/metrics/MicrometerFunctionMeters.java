@@ -33,11 +33,14 @@ public class MicrometerFunctionMeters implements FunctionExecutionsTimer {
   private final Timer failureTimer;
 
   MicrometerFunctionMeters(String functionId, MeterRegistry meterRegistry) {
-    this(functionId, meterRegistry, MicrometerFunctionMeters::registerSuccessTimer, MicrometerFunctionMeters::registerFailureTimer);
+    this(functionId, meterRegistry, MicrometerFunctionMeters::registerSuccessTimer,
+        MicrometerFunctionMeters::registerFailureTimer);
   }
 
   @VisibleForTesting
-  MicrometerFunctionMeters(String functionId, MeterRegistry meterRegistry, BiFunction<String, MeterRegistry, Timer> registerSuccessTimerFunction, BiFunction<String, MeterRegistry, Timer> registerFailureTimerFunction) {
+  MicrometerFunctionMeters(String functionId, MeterRegistry meterRegistry,
+      BiFunction<String, MeterRegistry, Timer> registerSuccessTimerFunction,
+      BiFunction<String, MeterRegistry, Timer> registerFailureTimerFunction) {
     Objects.requireNonNull(meterRegistry);
 
     this.meterRegistry = meterRegistry;
@@ -56,12 +59,13 @@ public class MicrometerFunctionMeters implements FunctionExecutionsTimer {
   }
 
   @Override
-  public void record(long elapsed, TimeUnit timeUnit, boolean succeeded) {
-    if (succeeded) {
-      successTimer.record(elapsed, timeUnit);
-    } else {
-      failureTimer.record(elapsed, timeUnit);
-    }
+  public void recordSuccess(long elapsed, TimeUnit timeUnit) {
+    successTimer.record(elapsed, timeUnit);
+  }
+
+  @Override
+  public void recordFailure(long elapsed, TimeUnit timeUnit) {
+    failureTimer.record(elapsed, timeUnit);
   }
 
   private static Timer registerSuccessTimer(String functionId, MeterRegistry meterRegistry) {

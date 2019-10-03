@@ -198,7 +198,8 @@ public class ServerRegionFunctionExecutor extends AbstractExecution {
   private ResultCollector executeOnServer(Function function, ResultCollector collector,
       byte hasResult, int timeoutMs) throws FunctionException {
     ServerRegionProxy srp = getServerRegionProxy();
-    FunctionStats stats = FunctionStatsFactory.getFunctionStats(function.getId(), region.getSystem());
+    FunctionStats stats =
+        FunctionStatsFactory.getFunctionStats(function.getId(), region.getSystem());
     long start = stats.getTime();
     stats.startFunctionExecution(true);
     try {
@@ -242,7 +243,8 @@ public class ServerRegionFunctionExecutor extends AbstractExecution {
 
   private void executeOnServerNoAck(Function function, byte hasResult) throws FunctionException {
     ServerRegionProxy srp = getServerRegionProxy();
-    FunctionStats stats = FunctionStatsFactory.getFunctionStats(function.getId(), region.getSystem());
+    FunctionStats stats =
+        FunctionStatsFactory.getFunctionStats(function.getId(), region.getSystem());
     long start = stats.getTime();
     stats.startFunctionExecution(false);
     try {

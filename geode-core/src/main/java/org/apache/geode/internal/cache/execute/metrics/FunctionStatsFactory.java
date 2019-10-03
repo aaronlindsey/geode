@@ -39,7 +39,8 @@ public class FunctionStatsFactory {
    *        instance
    * @param name The name of the <code>Statistics</code>
    */
-  public static FunctionStats create(StatisticsFactory factory, String name, MeterRegistry meterRegistry) {
+  public static FunctionStats create(StatisticsFactory factory, String name,
+      MeterRegistry meterRegistry) {
     return new LegacyFunctionStats(factory, name);
   }
 

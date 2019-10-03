@@ -17,5 +17,5 @@ package org.apache.geode.internal.cache.execute.metrics;
 /**
  * Implementation of {@link FunctionStats} that doesn't record any stats.
  */
-public class DummyFunctionStats implements FunctionStats{
+public class DummyFunctionStats implements FunctionStats {
 }

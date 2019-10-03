@@ -955,7 +955,8 @@ public class FunctionServiceStatsDUnitTest extends PRClientServerTestBase {
           functionServiceStats.getFunctionExecutionsCompleted());
       assertEquals(resultReceived_Aggregate, functionServiceStats.getResultsReceived());
 
-      FunctionStats functionStats = FunctionStatsFactory.getFunctionStats(inlineFunction.getId(), ds);
+      FunctionStats functionStats =
+          FunctionStatsFactory.getFunctionStats(inlineFunction.getId(), ds);
       assertEquals(noOfExecutionCalls_Inline, functionStats.getFunctionExecutionCalls());
       assertEquals(noOfExecutionsCompleted_Inline,
           functionStats.getFunctionExecutionsCompleted());

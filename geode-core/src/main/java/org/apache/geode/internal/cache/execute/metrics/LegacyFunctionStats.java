@@ -28,8 +28,6 @@ import org.apache.geode.annotations.VisibleForTesting;
 import org.apache.geode.distributed.internal.DistributionStats;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.internal.NanoTimer;
-import org.apache.geode.internal.cache.execute.metrics.FunctionServiceStats;
-import org.apache.geode.internal.cache.execute.metrics.FunctionStats;
 import org.apache.geode.internal.statistics.DummyStatisticsImpl;
 import org.apache.geode.internal.statistics.StatisticsTypeFactoryImpl;
 
@@ -142,7 +140,7 @@ public class LegacyFunctionStats implements FunctionStats {
   /**
    * Id of the FUNCTION_EXECUTIONS_EXCEPTIONS statistic
    */
-  private static final int _functionExecutionExceptions;
+  private static final int _functionExecutionExceptionsId;
 
   /**
    * Static initializer to create and initialize the <code>StatisticsType</code>
@@ -195,7 +193,7 @@ public class LegacyFunctionStats implements FunctionStats {
     _functionExecutionsHasResultCompletedProcessingTimeId =
         _type.nameToId(FUNCTION_EXECUTIONS_HASRESULT_COMPLETED_PROCESSING_TIME);
     _functionExecutionsHasResultRunningId = _type.nameToId(FUNCTION_EXECUTIONS_HASRESULT_RUNNING);
-    _functionExecutionExceptions = _type.nameToId(FUNCTION_EXECUTION_EXCEPTIONS);
+    _functionExecutionExceptionsId = _type.nameToId(FUNCTION_EXECUTION_EXCEPTIONS);
     _resultsReceived = _type.nameToId(RESULTS_RECEIVED);
   }
 
@@ -227,7 +225,13 @@ public class LegacyFunctionStats implements FunctionStats {
 
   @VisibleForTesting
   LegacyFunctionStats(Statistics stats, FunctionServiceStats aggregateStats,
-        LongSupplier clock, BooleanSupplier enableClockStats) {
+      long clockResult, boolean enableClockStatsResult) {
+    this(stats, aggregateStats, () -> clockResult, () -> enableClockStatsResult);
+  }
+
+  @VisibleForTesting
+  LegacyFunctionStats(Statistics stats, FunctionServiceStats aggregateStats,
+      LongSupplier clock, BooleanSupplier enableClockStats) {
     this._stats = stats;
     this.aggregateStats = aggregateStats;
     this.clock = clock;
@@ -292,7 +296,7 @@ public class LegacyFunctionStats implements FunctionStats {
   }
 
   @Override
-  public void endFunctionExecution(long elapsed, TimeUnit timeUnit, boolean haveResult) {
+  public void recordSuccessfulExecution(long elapsed, TimeUnit timeUnit, boolean haveResult) {
     // Increment number of function executions completed
     this._stats.incInt(_functionExecutionsCompletedId, 1);
 
@@ -318,12 +322,12 @@ public class LegacyFunctionStats implements FunctionStats {
   }
 
   @Override
-  public void endFunctionExecutionWithException(long elapsed, TimeUnit timeUnit, boolean haveResult) {
+  public void recordFailedExecution(long elapsed, TimeUnit timeUnit, boolean haveResult) {
     // Decrement function Executions running.
     this._stats.incInt(_functionExecutionsRunningId, -1);
 
     // Increment number of function excution exceptions
-    this._stats.incInt(_functionExecutionExceptions, 1);
+    this._stats.incInt(_functionExecutionExceptionsId, 1);
 
     if (haveResult) {
       // Decrement function Executions with haveResult = true running.
@@ -333,12 +337,32 @@ public class LegacyFunctionStats implements FunctionStats {
   }
 
   @VisibleForTesting
-  int getFunctionExecutionsCompletedProcessingTimeId() {
+  static int functionExecutionsCompletedId() {
+    return _functionExecutionsCompletedId;
+  }
+
+  @VisibleForTesting
+  static int functionExecutionsRunningId() {
+    return _functionExecutionsRunningId;
+  }
+
+  @VisibleForTesting
+  static int functionExecutionsHasResultRunningId() {
+    return _functionExecutionsHasResultRunningId;
+  }
+
+  @VisibleForTesting
+  static int functionExecutionsCompletedProcessingTimeId() {
     return _functionExecutionsCompletedProcessingTimeId;
   }
 
   @VisibleForTesting
-  int getFunctionExecutionsHasResultCompletedProcessingTimeId() {
+  static int functionExecutionsHasResultCompletedProcessingTimeId() {
     return _functionExecutionsHasResultCompletedProcessingTimeId;
+  }
+
+  @VisibleForTesting
+  static int functionExecutionExceptionsId() {
+    return _functionExecutionExceptionsId;
   }
 }

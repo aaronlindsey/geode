@@ -202,7 +202,8 @@ public class PartitionedRegionFunctionResultSender implements InternalResultSend
           // call a synchronized method as local node is also waiting to send lastResult
           lastResult(oneResult, rc, false, true, dm.getDistributionManagerId());
         }
-        FunctionStatsFactory.getFunctionStats(function.getId(), this.dm.getSystem()).incResultsReceived();
+        FunctionStatsFactory.getFunctionStats(function.getId(), this.dm.getSystem())
+            .incResultsReceived();
       }
       // incrementing result sent stats.
       // Bug : remote node as well as local node calls this method to send
@@ -210,7 +211,8 @@ public class PartitionedRegionFunctionResultSender implements InternalResultSend
       // time the stats for the result sent is again incremented : Once the PR team comes with the
       // concept of the Streaming FunctionOperation
       // for the partitioned Region then it will be simple to fix this problem.
-      FunctionStatsFactory.getFunctionStats(function.getId(), this.dm.getSystem()).incResultsReturned();
+      FunctionStatsFactory.getFunctionStats(function.getId(), this.dm.getSystem())
+          .incResultsReturned();
     }
   }
 
@@ -318,13 +320,15 @@ public class PartitionedRegionFunctionResultSender implements InternalResultSend
       if (this.dm == null) {
         FunctionStatsFactory.getFunctionStats(function.getId()).incResultsReceived();
       } else {
-        FunctionStatsFactory.getFunctionStats(function.getId(), this.dm.getSystem()).incResultsReceived();
+        FunctionStatsFactory.getFunctionStats(function.getId(), this.dm.getSystem())
+            .incResultsReceived();
       }
     }
     if (this.dm == null) {
       FunctionStatsFactory.getFunctionStats(function.getId()).incResultsReturned();
     } else {
-      FunctionStatsFactory.getFunctionStats(function.getId(), this.dm.getSystem()).incResultsReturned();
+      FunctionStatsFactory.getFunctionStats(function.getId(), this.dm.getSystem())
+          .incResultsReturned();
     }
   }
 
@@ -357,10 +361,12 @@ public class PartitionedRegionFunctionResultSender implements InternalResultSend
             "PartitionedRegionFunctionResultSender adding result to ResultCollector on local node {}",
             oneResult);
         this.rc.addResult(dm.getDistributionManagerId(), oneResult);
-        FunctionStatsFactory.getFunctionStats(function.getId(), this.dm.getSystem()).incResultsReceived();
+        FunctionStatsFactory.getFunctionStats(function.getId(), this.dm.getSystem())
+            .incResultsReceived();
       }
       // incrementing result sent stats.
-      FunctionStatsFactory.getFunctionStats(function.getId(), this.dm.getSystem()).incResultsReturned();
+      FunctionStatsFactory.getFunctionStats(function.getId(), this.dm.getSystem())
+          .incResultsReturned();
     }
   }
 

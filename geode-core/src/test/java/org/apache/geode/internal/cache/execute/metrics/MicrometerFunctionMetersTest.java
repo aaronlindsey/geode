@@ -84,8 +84,8 @@ public class MicrometerFunctionMetersTest {
 
   @Test
   public void close_removesSuccessTimer() {
-    FunctionExecutionsTimer
-        functionExecutionsTimer = new MicrometerFunctionMeters(FUNCTION_ID, meterRegistry);
+    FunctionExecutionsTimer functionExecutionsTimer =
+        new MicrometerFunctionMeters(FUNCTION_ID, meterRegistry);
 
     functionExecutionsTimer.close();
 
@@ -96,8 +96,8 @@ public class MicrometerFunctionMetersTest {
 
   @Test
   public void close_removesFailureTimer() {
-    FunctionExecutionsTimer
-        functionExecutionsTimer = new MicrometerFunctionMeters(FUNCTION_ID, meterRegistry);
+    FunctionExecutionsTimer functionExecutionsTimer =
+        new MicrometerFunctionMeters(FUNCTION_ID, meterRegistry);
 
     functionExecutionsTimer.close();
 
@@ -110,8 +110,9 @@ public class MicrometerFunctionMetersTest {
   public void close_closesTimers() {
     Timer successTimer = mock(Timer.class);
     Timer failureTimer = mock(Timer.class);
-    FunctionExecutionsTimer functionExecutionsTimer = new MicrometerFunctionMeters(FUNCTION_ID, mock(MeterRegistry.class),
-        (a, b) -> successTimer, (a, b) -> failureTimer);
+    FunctionExecutionsTimer functionExecutionsTimer =
+        new MicrometerFunctionMeters(FUNCTION_ID, mock(MeterRegistry.class),
+            (a, b) -> successTimer, (a, b) -> failureTimer);
 
     functionExecutionsTimer.close();
 
@@ -120,11 +121,11 @@ public class MicrometerFunctionMetersTest {
   }
 
   @Test
-  public void record_incrementsSuccessTimerCount_ifExecutionSucceeded() {
-    FunctionExecutionsTimer
-        functionExecutionsTimer = new MicrometerFunctionMeters(FUNCTION_ID, meterRegistry);
+  public void recordSuccess_incrementsSuccessTimerCount() {
+    FunctionExecutionsTimer functionExecutionsTimer =
+        new MicrometerFunctionMeters(FUNCTION_ID, meterRegistry);
 
-    functionExecutionsTimer.record(0, NANOSECONDS, true);
+    functionExecutionsTimer.recordSuccess(0, NANOSECONDS);
 
     assertThat(successTimer().count())
         .as("Success timer count")
@@ -132,23 +133,11 @@ public class MicrometerFunctionMetersTest {
   }
 
   @Test
-  public void record_doesNotIncrementFailureTimerCount_ifExecutionSucceeded() {
-    FunctionExecutionsTimer
-        functionExecutionsTimer = new MicrometerFunctionMeters(FUNCTION_ID, meterRegistry);
+  public void recordSuccess_incrementsSuccessTimerTotalTime() {
+    FunctionExecutionsTimer functionExecutionsTimer =
+        new MicrometerFunctionMeters(FUNCTION_ID, meterRegistry);
 
-    functionExecutionsTimer.record(0, NANOSECONDS, true);
-
-    assertThat(failureTimer().count())
-        .as("Failure timer count")
-        .isEqualTo(0);
-  }
-
-  @Test
-  public void record_incrementsSuccessTimerTotalTime_ifExecutionSucceeded() {
-    FunctionExecutionsTimer
-        functionExecutionsTimer = new MicrometerFunctionMeters(FUNCTION_ID, meterRegistry);
-
-    functionExecutionsTimer.record(42, NANOSECONDS, true);
+    functionExecutionsTimer.recordSuccess(42, NANOSECONDS);
 
     assertThat(successTimer().totalTime(NANOSECONDS))
         .as("Success timer total time")
@@ -156,23 +145,11 @@ public class MicrometerFunctionMetersTest {
   }
 
   @Test
-  public void record_doesNotIncrementFailureTimerTotalTime_ifExecutionSucceeded() {
-    FunctionExecutionsTimer
-        functionExecutionsTimer = new MicrometerFunctionMeters(FUNCTION_ID, meterRegistry);
+  public void recordFailure_incrementsFailureTimerCount() {
+    FunctionExecutionsTimer functionExecutionsTimer =
+        new MicrometerFunctionMeters(FUNCTION_ID, meterRegistry);
 
-    functionExecutionsTimer.record(24, NANOSECONDS, true);
-
-    assertThat(failureTimer().totalTime(NANOSECONDS))
-        .as("Failure timer total time")
-        .isEqualTo(0);
-  }
-
-  @Test
-  public void record_incrementsFailureTimerCount_ifExecutionFailed() {
-    FunctionExecutionsTimer
-        functionExecutionsTimer = new MicrometerFunctionMeters(FUNCTION_ID, meterRegistry);
-
-    functionExecutionsTimer.record(0, NANOSECONDS, false);
+    functionExecutionsTimer.recordFailure(0, NANOSECONDS);
 
     assertThat(failureTimer().count())
         .as("Failure timer count")
@@ -180,39 +157,15 @@ public class MicrometerFunctionMetersTest {
   }
 
   @Test
-  public void record_doesNotIncrementSuccessTimerCount_ifExecutionFailed() {
-    FunctionExecutionsTimer
-        functionExecutionsTimer = new MicrometerFunctionMeters(FUNCTION_ID, meterRegistry);
+  public void recordFailure_incrementsFailureTimerTotalTime() {
+    FunctionExecutionsTimer functionExecutionsTimer =
+        new MicrometerFunctionMeters(FUNCTION_ID, meterRegistry);
 
-    functionExecutionsTimer.record(0, NANOSECONDS, false);
-
-    assertThat(successTimer().count())
-        .as("Success timer count")
-        .isEqualTo(0);
-  }
-
-  @Test
-  public void record_incrementsFailureTimerTotalTime_ifExecutionFailed() {
-    FunctionExecutionsTimer
-        functionExecutionsTimer = new MicrometerFunctionMeters(FUNCTION_ID, meterRegistry);
-
-    functionExecutionsTimer.record(68, NANOSECONDS, false);
+    functionExecutionsTimer.recordFailure(68, NANOSECONDS);
 
     assertThat(failureTimer().totalTime(NANOSECONDS))
         .as("Failure timer total time")
         .isEqualTo(68);
-  }
-
-  @Test
-  public void record_doesNotIncrementSuccessTimerTotalTime_ifExecutionFailed() {
-    FunctionExecutionsTimer
-        functionExecutionsTimer = new MicrometerFunctionMeters(FUNCTION_ID, meterRegistry);
-
-    functionExecutionsTimer.record(12, NANOSECONDS, false);
-
-    assertThat(successTimer().totalTime(NANOSECONDS))
-        .as("Success timer total time")
-        .isEqualTo(0);
   }
 
   private Timer successTimer() {

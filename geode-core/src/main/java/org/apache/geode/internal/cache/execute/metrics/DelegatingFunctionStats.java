@@ -14,6 +14,8 @@
  */
 package org.apache.geode.internal.cache.execute.metrics;
 
+import static java.util.Objects.requireNonNull;
+
 import java.util.concurrent.TimeUnit;
 
 public class DelegatingFunctionStats implements FunctionStats {
@@ -21,7 +23,11 @@ public class DelegatingFunctionStats implements FunctionStats {
   private final FunctionStats innerFunctionStats;
   private final FunctionExecutionsTimer functionExecutionsTimer;
 
-  DelegatingFunctionStats(FunctionStats innerFunctionStats, FunctionExecutionsTimer functionExecutionsTimer) {
+  DelegatingFunctionStats(FunctionStats innerFunctionStats,
+      FunctionExecutionsTimer functionExecutionsTimer) {
+    requireNonNull(innerFunctionStats, "Inner function stats");
+    requireNonNull(functionExecutionsTimer, "Function executions timer");
+
     this.innerFunctionStats = innerFunctionStats;
     this.functionExecutionsTimer = functionExecutionsTimer;
   }
@@ -73,14 +79,14 @@ public class DelegatingFunctionStats implements FunctionStats {
   }
 
   @Override
-  public void endFunctionExecution(long elapsed, TimeUnit timeUnit, boolean haveResult) {
-    innerFunctionStats.endFunctionExecution(elapsed, timeUnit, haveResult);
-    functionExecutionsTimer.record(elapsed, timeUnit, true);
+  public void recordSuccessfulExecution(long elapsed, TimeUnit timeUnit, boolean haveResult) {
+    innerFunctionStats.recordSuccessfulExecution(elapsed, timeUnit, haveResult);
+    functionExecutionsTimer.recordSuccess(elapsed, timeUnit);
   }
 
   @Override
-  public void endFunctionExecutionWithException(long elapsed, TimeUnit timeUnit, boolean haveResult) {
-    innerFunctionStats.endFunctionExecutionWithException(elapsed, timeUnit, haveResult);
-    functionExecutionsTimer.record(elapsed, timeUnit, false);
+  public void recordFailedExecution(long elapsed, TimeUnit timeUnit, boolean haveResult) {
+    innerFunctionStats.recordFailedExecution(elapsed, timeUnit, haveResult);
+    functionExecutionsTimer.recordFailure(elapsed, timeUnit);
   }
 }

@@ -20,5 +20,7 @@ public interface FunctionExecutionsTimer {
 
   void close();
 
-  void record(long elapsed, TimeUnit timeUnit, boolean succeeded);
+  void recordSuccess(long elapsed, TimeUnit timeUnit);
+
+  void recordFailure(long elapsed, TimeUnit timeUnit);
 }

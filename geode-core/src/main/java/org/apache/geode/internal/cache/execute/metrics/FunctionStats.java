@@ -106,10 +106,10 @@ public interface FunctionStats {
    */
   default void endFunctionExecution(long startTime, boolean haveResult) {
     long elapsed = getTime() - startTime;
-    endFunctionExecution(elapsed, NANOSECONDS, haveResult);
+    recordSuccessfulExecution(elapsed, NANOSECONDS, haveResult);
   }
 
-  default void endFunctionExecution(long elapsed, TimeUnit timeUnit, boolean haveResult) {
+  default void recordSuccessfulExecution(long elapsed, TimeUnit timeUnit, boolean haveResult) {
 
   }
 
@@ -119,10 +119,10 @@ public interface FunctionStats {
    */
   default void endFunctionExecutionWithException(long startTime, boolean haveResult) {
     long elapsed = getTime() - startTime;
-    endFunctionExecutionWithException(elapsed, NANOSECONDS, haveResult);
+    recordFailedExecution(elapsed, NANOSECONDS, haveResult);
   }
 
-  default void endFunctionExecutionWithException(long elapsed, TimeUnit timeUnit, boolean haveResult) {
+  default void recordFailedExecution(long elapsed, TimeUnit timeUnit, boolean haveResult) {
 
   }
 }
