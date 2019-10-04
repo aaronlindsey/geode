@@ -43,7 +43,7 @@ import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
 import org.apache.geode.internal.cache.execute.metrics.FunctionStats;
-import org.apache.geode.internal.cache.execute.metrics.FunctionStatsFactory;
+import org.apache.geode.internal.cache.execute.metrics.FunctionStatsManager;
 import org.apache.geode.internal.cache.tier.sockets.ServerConnection;
 import org.apache.geode.internal.logging.LogService;
 
@@ -316,7 +316,7 @@ public abstract class AbstractExecution implements InternalExecution {
   private void executeFunctionLocally(final Function<?> fn, final FunctionContext cx,
       final ResultSender sender, DistributionManager dm) {
 
-    FunctionStats stats = FunctionStatsFactory.getFunctionStats(fn.getId(), dm.getSystem());
+    FunctionStats stats = FunctionStatsManager.getFunctionStats(fn.getId(), dm.getSystem());
 
     long start = stats.getTime();
     stats.startFunctionExecution(fn.hasResult());
@@ -483,7 +483,7 @@ public abstract class AbstractExecution implements InternalExecution {
 
   private void handleException(Throwable functionException, final Function fn,
       final ResultSender sender, DistributionManager dm, long startTime) {
-    FunctionStats stats = FunctionStatsFactory.getFunctionStats(fn.getId(), dm.getSystem());
+    FunctionStats stats = FunctionStatsManager.getFunctionStats(fn.getId(), dm.getSystem());
 
     if (logger.isDebugEnabled()) {
       logger.debug("Exception occurred on local node while executing Function: {}", fn.getId(),

@@ -36,7 +36,7 @@ import org.apache.geode.internal.cache.execute.AbstractExecution;
 import org.apache.geode.internal.cache.execute.InternalFunctionException;
 import org.apache.geode.internal.cache.execute.InternalFunctionInvocationTargetException;
 import org.apache.geode.internal.cache.execute.MemberMappedArgument;
-import org.apache.geode.internal.cache.execute.metrics.FunctionStatsFactory;
+import org.apache.geode.internal.cache.execute.metrics.FunctionStatsManager;
 import org.apache.geode.internal.cache.tier.MessageType;
 import org.apache.geode.internal.cache.tier.sockets.ChunkedMessage;
 import org.apache.geode.internal.cache.tier.sockets.Message;
@@ -338,7 +338,7 @@ public class ExecuteFunctionOp {
                   DistributedMember memberID =
                       (DistributedMember) ((ArrayList) resultResponse).get(1);
                   resultCollector.addResult(memberID, cause);
-                  FunctionStatsFactory.getFunctionStats(functionId).incResultsReceived();
+                  FunctionStatsManager.getFunctionStats(functionId).incResultsReceived();
                 } else {
                   exception = ex;
                 }
@@ -351,7 +351,7 @@ public class ExecuteFunctionOp {
                 DistributedMember memberID =
                     (DistributedMember) ((ArrayList) resultResponse).get(1);
                 resultCollector.addResult(memberID, result);
-                FunctionStatsFactory.getFunctionStats(functionId).incResultsReceived();
+                FunctionStatsManager.getFunctionStats(functionId).incResultsReceived();
               }
             } while (!executeFunctionResponseMsg.isLastChunk());
 

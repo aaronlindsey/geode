@@ -23,7 +23,7 @@ import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.internal.cache.DistributedRegionFunctionStreamingMessage;
 import org.apache.geode.internal.cache.ForceReattemptException;
-import org.apache.geode.internal.cache.execute.metrics.FunctionStatsFactory;
+import org.apache.geode.internal.cache.execute.metrics.FunctionStatsManager;
 import org.apache.geode.internal.logging.LogService;
 
 public class DistributedRegionFunctionResultSender implements InternalResultSender {
@@ -90,7 +90,7 @@ public class DistributedRegionFunctionResultSender implements InternalResultSend
       if (isLocal) {
         this.rc.addResult(dm.getDistributionManagerId(), oneResult);
         this.rc.endResults();
-        FunctionStatsFactory.getFunctionStats(functionObject.getId(), this.dm.getSystem())
+        FunctionStatsManager.getFunctionStats(functionObject.getId(), this.dm.getSystem())
             .incResultsReceived();
       } else {
         try {
@@ -102,7 +102,7 @@ public class DistributedRegionFunctionResultSender implements InternalResultSend
         }
       }
       // incrementing result sent stats.
-      FunctionStatsFactory.getFunctionStats(functionObject.getId(), this.dm.getSystem())
+      FunctionStatsManager.getFunctionStats(functionObject.getId(), this.dm.getSystem())
           .incResultsReturned();
     }
 
@@ -135,9 +135,9 @@ public class DistributedRegionFunctionResultSender implements InternalResultSend
       }
       // incrementing result sent stats.
       if (this.dm == null) {
-        FunctionStatsFactory.getFunctionStats(functionObject.getId()).incResultsReceived();
+        FunctionStatsManager.getFunctionStats(functionObject.getId()).incResultsReceived();
       } else {
-        FunctionStatsFactory.getFunctionStats(functionObject.getId(), this.dm.getSystem())
+        FunctionStatsManager.getFunctionStats(functionObject.getId(), this.dm.getSystem())
             .incResultsReceived();
       }
     }
@@ -156,7 +156,7 @@ public class DistributedRegionFunctionResultSender implements InternalResultSend
     } else {
       if (isLocal) {
         this.rc.addResult(dm.getDistributionManagerId(), oneResult);
-        FunctionStatsFactory.getFunctionStats(functionObject.getId(), this.dm.getSystem())
+        FunctionStatsManager.getFunctionStats(functionObject.getId(), this.dm.getSystem())
             .incResultsReceived();
       } else {
         try {
@@ -168,7 +168,7 @@ public class DistributedRegionFunctionResultSender implements InternalResultSend
         }
       }
       // incrementing result sent stats.
-      FunctionStatsFactory.getFunctionStats(functionObject.getId(), this.dm.getSystem())
+      FunctionStatsManager.getFunctionStats(functionObject.getId(), this.dm.getSystem())
           .incResultsReturned();
     }
   }
@@ -185,9 +185,9 @@ public class DistributedRegionFunctionResultSender implements InternalResultSend
       if (isLocal) {
         this.rc.addResult(memberID, oneResult);
         if (this.dm == null) {
-          FunctionStatsFactory.getFunctionStats(functionObject.getId()).incResultsReceived();
+          FunctionStatsManager.getFunctionStats(functionObject.getId()).incResultsReceived();
         } else {
-          FunctionStatsFactory.getFunctionStats(functionObject.getId(), this.dm.getSystem())
+          FunctionStatsManager.getFunctionStats(functionObject.getId(), this.dm.getSystem())
               .incResultsReceived();
         }
       } else {
@@ -201,9 +201,9 @@ public class DistributedRegionFunctionResultSender implements InternalResultSend
       }
       // incrementing result sent stats.
       if (this.dm == null) {
-        FunctionStatsFactory.getFunctionStats(functionObject.getId()).incResultsReturned();
+        FunctionStatsManager.getFunctionStats(functionObject.getId()).incResultsReturned();
       } else {
-        FunctionStatsFactory.getFunctionStats(functionObject.getId(), this.dm.getSystem())
+        FunctionStatsManager.getFunctionStats(functionObject.getId(), this.dm.getSystem())
             .incResultsReturned();
       }
     }

@@ -39,7 +39,6 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.StringTokenizer;
 import java.util.TreeSet;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -94,7 +93,7 @@ import org.apache.geode.internal.cache.InternalCacheBuilder;
 import org.apache.geode.internal.cache.execute.InternalFunctionService;
 import org.apache.geode.internal.cache.execute.metrics.FunctionServiceStats;
 import org.apache.geode.internal.cache.execute.metrics.FunctionStats;
-import org.apache.geode.internal.cache.execute.metrics.FunctionStatsFactory;
+import org.apache.geode.internal.cache.execute.metrics.FunctionStatsManager;
 import org.apache.geode.internal.cache.tier.sockets.EncryptorImpl;
 import org.apache.geode.internal.cache.xmlcache.CacheServerCreation;
 import org.apache.geode.internal.config.ClusterConfigurationNotAvailableException;
@@ -115,7 +114,6 @@ import org.apache.geode.internal.statistics.StatisticsManagerFactory;
 import org.apache.geode.internal.statistics.StatisticsRegistry;
 import org.apache.geode.internal.statistics.platform.LinuxProcFsStatistics;
 import org.apache.geode.internal.tcp.ConnectionTable;
-import org.apache.geode.internal.util.JavaWorkarounds;
 import org.apache.geode.logging.internal.LoggingSession;
 import org.apache.geode.logging.internal.NullLoggingSession;
 import org.apache.geode.logging.internal.spi.LogConfig;
@@ -173,6 +171,7 @@ public class InternalDistributedSystem extends DistributedSystem
       ThreadLocal.withInitial(() -> Boolean.FALSE);
 
   private final StatisticsManager statisticsManager;
+  private final FunctionStatsManager functionStatsManager;
 
   /**
    * The distribution manager that is used to communicate with the distributed system.
@@ -530,12 +529,13 @@ public class InternalDistributedSystem extends DistributedSystem
    *
    * <p>
    * See {@link #connect} for a list of exceptions that may be thrown.
-   *
-   * @param config the configuration for the connection
+   *  @param config the configuration for the connection
    * @param statisticsManagerFactory creates the statistics manager for this member
+   * @param functionStatsManagerFactory
    */
   private InternalDistributedSystem(ConnectionConfig config,
-      StatisticsManagerFactory statisticsManagerFactory) {
+                                    StatisticsManagerFactory statisticsManagerFactory,
+                                    FunctionStatsManager.Factory functionStatsManagerFactory) {
     alertingSession = AlertingSession.create();
     alertingService = new InternalAlertingServiceFactory().create();
     loggingSession = LoggingSession.create();
@@ -554,6 +554,9 @@ public class InternalDistributedSystem extends DistributedSystem
 
     statisticsManager =
         statisticsManagerFactory.create(originalConfig.getName(), startTime, statsDisabled);
+
+    this.functionStatsManager = functionStatsManagerFactory.create(statsDisabled, statisticsManager,
+        InternalDistributedSystem::getMeterRegistry);
   }
 
   public SecurityService getSecurityService() {
@@ -1587,10 +1590,7 @@ public class InternalDistributedSystem extends DistributedSystem
       if (functionServiceStats != null) {
         functionServiceStats.close();
       }
-      // closing individual function stats
-      for (FunctionStats functionstats : functionExecutionStatsMap.values()) {
-        functionstats.close();
-      }
+      functionStatsManager.close();
 
       InternalFunctionService.unregisterAllFunctions();
 
@@ -1923,20 +1923,11 @@ public class InternalDistributedSystem extends DistributedSystem
     return sb.toString().trim();
   }
 
-  // As the function execution stats can be lot in number, its better to put
-  // them in a map so that it will be accessible immediately
-  private final ConcurrentHashMap<String, FunctionStats> functionExecutionStatsMap =
-      new ConcurrentHashMap<>();
   private FunctionServiceStats functionServiceStats = null;
 
-  public FunctionStats getFunctionStats(String textId) {
-    if (statsDisabled) {
-      return FunctionStatsFactory.dummy;
-    }
-    return JavaWorkarounds.computeIfAbsent(functionExecutionStatsMap, textId,
-        key -> FunctionStatsFactory.create(this, key, getMeterRegistry()));
+  public FunctionStats getFunctionStats(String name) {
+    return functionStatsManager.getFunctionStatsByName(name);
   }
-
 
   public synchronized FunctionServiceStats getFunctionServiceStats() {
     if (functionServiceStats == null) {
@@ -1944,7 +1935,6 @@ public class InternalDistributedSystem extends DistributedSystem
     }
     return functionServiceStats;
   }
-
 
   /**
    * Makes note of a <code>ConnectListener</code> whose <code>onConnect</code> method will be
@@ -2953,8 +2943,12 @@ public class InternalDistributedSystem extends DistributedSystem
     return dm == null ? null : dm.getCache();
   }
 
-  public MeterRegistry getMeterRegistry() {
-    InternalCache cache = getCache();
+  public static MeterRegistry getMeterRegistry() {
+    InternalDistributedSystem connectedInstance = InternalDistributedSystem.getConnectedInstance();
+    if (connectedInstance == null) {
+      return null;
+    }
+    InternalCache cache = connectedInstance.getCache();
     return cache == null ? null : cache.getMeterRegistry();
   }
 
@@ -2995,9 +2989,9 @@ public class InternalDistributedSystem extends DistributedSystem
       InternalDataSerializer.checkSerializationVersion();
       try {
         SystemFailure.startThreads();
-        InternalDistributedSystem newSystem =
-            new InternalDistributedSystem(new ConnectionConfigImpl(
-                configProperties), defaultStatisticsManagerFactory());
+        InternalDistributedSystem newSystem = new InternalDistributedSystem(
+            new ConnectionConfigImpl(configProperties), defaultStatisticsManagerFactory(),
+            FunctionStatsManager::new);
         newSystem
             .initialize(securityConfig.getSecurityManager(), securityConfig.getPostProcessor());
         notifyConnectListeners(newSystem);
@@ -3040,8 +3034,8 @@ public class InternalDistributedSystem extends DistributedSystem
     public InternalDistributedSystem build() {
       ConnectionConfigImpl connectionConfig = new ConnectionConfigImpl(configProperties);
 
-      InternalDistributedSystem internalDistributedSystem =
-          new InternalDistributedSystem(connectionConfig, statisticsManagerFactory);
+      InternalDistributedSystem internalDistributedSystem = new InternalDistributedSystem(
+          connectionConfig, statisticsManagerFactory, FunctionStatsManager::new);
 
       internalDistributedSystem.config =
           new RuntimeDistributionConfigImpl(internalDistributedSystem);

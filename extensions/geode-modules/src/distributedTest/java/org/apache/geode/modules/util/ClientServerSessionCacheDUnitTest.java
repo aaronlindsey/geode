@@ -46,7 +46,7 @@ import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.MembershipListener;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.execute.metrics.FunctionStats;
-import org.apache.geode.internal.cache.execute.metrics.FunctionStatsFactory;
+import org.apache.geode.internal.cache.execute.metrics.FunctionStatsManager;
 import org.apache.geode.modules.session.catalina.ClientServerSessionCache;
 import org.apache.geode.modules.session.catalina.SessionManager;
 import org.apache.geode.test.dunit.DistributedTestUtils;
@@ -279,7 +279,7 @@ public class ClientServerSessionCacheDUnitTest implements Serializable {
   }
 
   private void validateRegionSizeFunctionCalls() {
-    FunctionStats functionStats = FunctionStatsFactory.getFunctionStats(RegionSizeFunction.ID);
+    FunctionStats functionStats = FunctionStatsManager.getFunctionStats(RegionSizeFunction.ID);
     assertThat(functionStats.getFunctionExecutionCalls())
         .as("No function should be invoked to get the region size.")
         .isEqualTo(0);

@@ -47,7 +47,7 @@ import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.InternalRegion;
 import org.apache.geode.internal.cache.execute.metrics.FunctionStats;
-import org.apache.geode.internal.cache.execute.metrics.FunctionStatsFactory;
+import org.apache.geode.internal.cache.execute.metrics.FunctionStatsManager;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.test.awaitility.GeodeAwaitility;
 import org.apache.geode.test.dunit.AsyncInvocation;
@@ -299,7 +299,7 @@ public class FunctionRetryTestBase implements Serializable {
   private int getNumberOfFunctionCalls(final MemberVM vm, final String functionId) {
     return vm.invoke(() -> {
       final int numExecutions;
-      final FunctionStats functionStats = FunctionStatsFactory.getFunctionStats(functionId);
+      final FunctionStats functionStats = FunctionStatsManager.getFunctionStats(functionId);
       if (functionStats == null) {
         numExecutions = 0;
       } else {

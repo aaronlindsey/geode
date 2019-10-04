@@ -25,7 +25,7 @@ import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.internal.cache.ForceReattemptException;
 import org.apache.geode.internal.cache.MemberFunctionStreamingMessage;
-import org.apache.geode.internal.cache.execute.metrics.FunctionStatsFactory;
+import org.apache.geode.internal.cache.execute.metrics.FunctionStatsManager;
 import org.apache.geode.internal.logging.LogService;
 
 public class MemberFunctionResultSender implements InternalResultSender {
@@ -118,11 +118,11 @@ public class MemberFunctionResultSender implements InternalResultSender {
           // call a synchronized method as local node is also waiting to send lastResult
           lastResult(oneResult, rc, false, true, this.dm.getDistributionManagerId());
         }
-        FunctionStatsFactory.getFunctionStats(function.getId(), this.dm.getSystem())
+        FunctionStatsManager.getFunctionStats(function.getId(), this.dm.getSystem())
             .incResultsReceived();
       }
     }
-    FunctionStatsFactory.getFunctionStats(function.getId(), this.dm.getSystem())
+    FunctionStatsManager.getFunctionStats(function.getId(), this.dm.getSystem())
         .incResultsReturned();
   }
 
@@ -178,10 +178,10 @@ public class MemberFunctionResultSender implements InternalResultSender {
       } else {
         reply.addResult(memberID, oneResult);
       }
-      FunctionStatsFactory.getFunctionStats(function.getId(), this.dm.getSystem())
+      FunctionStatsManager.getFunctionStats(function.getId(), this.dm.getSystem())
           .incResultsReceived();
     }
-    FunctionStatsFactory.getFunctionStats(function.getId(), this.dm.getSystem())
+    FunctionStatsManager.getFunctionStats(function.getId(), this.dm.getSystem())
         .incResultsReturned();
   }
 
@@ -211,11 +211,11 @@ public class MemberFunctionResultSender implements InternalResultSender {
         }
       } else {
         this.rc.addResult(this.dm.getDistributionManagerId(), oneResult);
-        FunctionStatsFactory.getFunctionStats(function.getId(), this.dm.getSystem())
+        FunctionStatsManager.getFunctionStats(function.getId(), this.dm.getSystem())
             .incResultsReceived();
       }
       // incrementing result sent stats.
-      FunctionStatsFactory.getFunctionStats(function.getId(), this.dm.getSystem())
+      FunctionStatsManager.getFunctionStats(function.getId(), this.dm.getSystem())
           .incResultsReturned();
     }
   }

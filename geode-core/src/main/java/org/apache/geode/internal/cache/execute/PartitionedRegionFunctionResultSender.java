@@ -26,7 +26,7 @@ import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.internal.cache.ForceReattemptException;
 import org.apache.geode.internal.cache.PartitionedRegion;
-import org.apache.geode.internal.cache.execute.metrics.FunctionStatsFactory;
+import org.apache.geode.internal.cache.execute.metrics.FunctionStatsManager;
 import org.apache.geode.internal.cache.partitioned.PartitionedRegionFunctionStreamingMessage;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.serialization.Version;
@@ -202,7 +202,7 @@ public class PartitionedRegionFunctionResultSender implements InternalResultSend
           // call a synchronized method as local node is also waiting to send lastResult
           lastResult(oneResult, rc, false, true, dm.getDistributionManagerId());
         }
-        FunctionStatsFactory.getFunctionStats(function.getId(), this.dm.getSystem())
+        FunctionStatsManager.getFunctionStats(function.getId(), this.dm.getSystem())
             .incResultsReceived();
       }
       // incrementing result sent stats.
@@ -211,7 +211,7 @@ public class PartitionedRegionFunctionResultSender implements InternalResultSend
       // time the stats for the result sent is again incremented : Once the PR team comes with the
       // concept of the Streaming FunctionOperation
       // for the partitioned Region then it will be simple to fix this problem.
-      FunctionStatsFactory.getFunctionStats(function.getId(), this.dm.getSystem())
+      FunctionStatsManager.getFunctionStats(function.getId(), this.dm.getSystem())
           .incResultsReturned();
     }
   }
@@ -318,16 +318,16 @@ public class PartitionedRegionFunctionResultSender implements InternalResultSend
         reply.addResult(memberID, oneResult);
       }
       if (this.dm == null) {
-        FunctionStatsFactory.getFunctionStats(function.getId()).incResultsReceived();
+        FunctionStatsManager.getFunctionStats(function.getId()).incResultsReceived();
       } else {
-        FunctionStatsFactory.getFunctionStats(function.getId(), this.dm.getSystem())
+        FunctionStatsManager.getFunctionStats(function.getId(), this.dm.getSystem())
             .incResultsReceived();
       }
     }
     if (this.dm == null) {
-      FunctionStatsFactory.getFunctionStats(function.getId()).incResultsReturned();
+      FunctionStatsManager.getFunctionStats(function.getId()).incResultsReturned();
     } else {
-      FunctionStatsFactory.getFunctionStats(function.getId(), this.dm.getSystem())
+      FunctionStatsManager.getFunctionStats(function.getId(), this.dm.getSystem())
           .incResultsReturned();
     }
   }
@@ -361,11 +361,11 @@ public class PartitionedRegionFunctionResultSender implements InternalResultSend
             "PartitionedRegionFunctionResultSender adding result to ResultCollector on local node {}",
             oneResult);
         this.rc.addResult(dm.getDistributionManagerId(), oneResult);
-        FunctionStatsFactory.getFunctionStats(function.getId(), this.dm.getSystem())
+        FunctionStatsManager.getFunctionStats(function.getId(), this.dm.getSystem())
             .incResultsReceived();
       }
       // incrementing result sent stats.
-      FunctionStatsFactory.getFunctionStats(function.getId(), this.dm.getSystem())
+      FunctionStatsManager.getFunctionStats(function.getId(), this.dm.getSystem())
           .incResultsReturned();
     }
   }

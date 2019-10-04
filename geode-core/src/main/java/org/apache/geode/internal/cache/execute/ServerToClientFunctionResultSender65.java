@@ -26,7 +26,7 @@ import org.apache.geode.cache.operations.ExecuteFunctionOperationContext;
 import org.apache.geode.cache.query.QueryInvalidException;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
-import org.apache.geode.internal.cache.execute.metrics.FunctionStatsFactory;
+import org.apache.geode.internal.cache.execute.metrics.FunctionStatsManager;
 import org.apache.geode.internal.cache.tier.Command;
 import org.apache.geode.internal.cache.tier.sockets.BaseCommand;
 import org.apache.geode.internal.cache.tier.sockets.ChunkedMessage;
@@ -95,7 +95,7 @@ public class ServerToClientFunctionResultSender65 extends ServerToClientFunction
       this.msg.sendChunk(this.sc);
       this.lastResultReceived = true;
       this.sc.setAsTrue(Command.RESPONDED);
-      FunctionStatsFactory.getFunctionStats(fn.getId()).incResultsReturned();
+      FunctionStatsManager.getFunctionStats(fn.getId()).incResultsReturned();
     } catch (IOException ex) {
       if (isOkayToSendResult()) {
         throw new FunctionException(
@@ -158,7 +158,7 @@ public class ServerToClientFunctionResultSender65 extends ServerToClientFunction
       this.msg.sendChunk(this.sc);
       this.lastResultReceived = true;
       this.sc.setAsTrue(Command.RESPONDED);
-      FunctionStatsFactory.getFunctionStats(fn.getId()).incResultsReturned();
+      FunctionStatsManager.getFunctionStats(fn.getId()).incResultsReturned();
     } catch (IOException ex) {
       if (isOkayToSendResult()) {
         throw new FunctionException(
@@ -203,7 +203,7 @@ public class ServerToClientFunctionResultSender65 extends ServerToClientFunction
       this.msg.setNumberOfParts(1);
       this.msg.addObjPart(result);
       this.msg.sendChunk(this.sc);
-      FunctionStatsFactory.getFunctionStats(fn.getId()).incResultsReturned();
+      FunctionStatsManager.getFunctionStats(fn.getId()).incResultsReturned();
     } catch (IOException ex) {
       if (isOkayToSendResult()) {
         throw new FunctionException(
@@ -247,7 +247,7 @@ public class ServerToClientFunctionResultSender65 extends ServerToClientFunction
       this.msg.setNumberOfParts(1);
       this.msg.addObjPart(result);
       this.msg.sendChunk(this.sc);
-      FunctionStatsFactory.getFunctionStats(fn.getId()).incResultsReturned();
+      FunctionStatsManager.getFunctionStats(fn.getId()).incResultsReturned();
     } catch (IOException ex) {
       if (isOkayToSendResult()) {
         throw new FunctionException(

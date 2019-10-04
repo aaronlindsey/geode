@@ -35,7 +35,7 @@ import org.apache.geode.cache.execute.FunctionService;
 import org.apache.geode.cache.execute.ResultCollector;
 import org.apache.geode.internal.cache.TXManagerImpl;
 import org.apache.geode.internal.cache.execute.metrics.FunctionStats;
-import org.apache.geode.internal.cache.execute.metrics.FunctionStatsFactory;
+import org.apache.geode.internal.cache.execute.metrics.FunctionStatsManager;
 import org.apache.geode.internal.cache.execute.util.SynchronizedResultCollector;
 
 public class ServerFunctionExecutor extends AbstractExecution {
@@ -148,7 +148,7 @@ public class ServerFunctionExecutor extends AbstractExecution {
 
   private ResultCollector executeOnServer(Function function, ResultCollector rc, byte hasResult,
       int timeoutMs) {
-    FunctionStats stats = FunctionStatsFactory.getFunctionStats(function.getId());
+    FunctionStats stats = FunctionStatsManager.getFunctionStats(function.getId());
     long start = stats.getTime();
     stats.startFunctionExecution(true);
     try {
@@ -193,7 +193,7 @@ public class ServerFunctionExecutor extends AbstractExecution {
 
   private ResultCollector executeOnServer(String functionId, ResultCollector rc, byte hasResult,
       boolean isHA, boolean optimizeForWrite, int timeoutMs) {
-    FunctionStats stats = FunctionStatsFactory.getFunctionStats(functionId);
+    FunctionStats stats = FunctionStatsManager.getFunctionStats(functionId);
     long start = stats.getTime();
     stats.startFunctionExecution(true);
     try {
@@ -238,7 +238,7 @@ public class ServerFunctionExecutor extends AbstractExecution {
   }
 
   private void executeOnServerNoAck(Function function, byte hasResult) {
-    FunctionStats stats = FunctionStatsFactory.getFunctionStats(function.getId());
+    FunctionStats stats = FunctionStatsManager.getFunctionStats(function.getId());
     long start = stats.getTime();
     stats.startFunctionExecution(false);
     try {
@@ -259,7 +259,7 @@ public class ServerFunctionExecutor extends AbstractExecution {
 
   private void executeOnServerNoAck(String functionId, byte hasResult, boolean isHA,
       boolean optimizeForWrite) {
-    FunctionStats stats = FunctionStatsFactory.getFunctionStats(functionId);
+    FunctionStats stats = FunctionStatsManager.getFunctionStats(functionId);
     long start = stats.getTime();
     stats.startFunctionExecution(false);
     try {
