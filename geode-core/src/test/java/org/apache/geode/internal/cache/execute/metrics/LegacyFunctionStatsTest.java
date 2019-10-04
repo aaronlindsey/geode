@@ -21,9 +21,11 @@ import static org.apache.geode.internal.cache.execute.metrics.LegacyFunctionStat
 import static org.apache.geode.internal.cache.execute.metrics.LegacyFunctionStats.functionExecutionsHasResultCompletedProcessingTimeId;
 import static org.apache.geode.internal.cache.execute.metrics.LegacyFunctionStats.functionExecutionsHasResultRunningId;
 import static org.apache.geode.internal.cache.execute.metrics.LegacyFunctionStats.functionExecutionsRunningId;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -35,6 +37,7 @@ import org.mockito.junit.MockitoRule;
 import org.mockito.quality.Strictness;
 
 import org.apache.geode.Statistics;
+import org.apache.geode.internal.admin.Stat;
 
 public class LegacyFunctionStatsTest {
 
@@ -128,7 +131,7 @@ public class LegacyFunctionStatsTest {
   @Test
   public void recordSuccessfulExecution_incrementsAggregateStats() {
     LegacyFunctionStats legacyFunctionStats =
-        new LegacyFunctionStats(statistics, functionServiceStats, 0L, false);
+        new LegacyFunctionStats(statistics, functionServiceStats);
 
     long elapsedNanos = 5;
     boolean haveResult = true;
@@ -141,7 +144,7 @@ public class LegacyFunctionStatsTest {
   @Test
   public void recordFailedExecution_noResult_incrementsStats() {
     LegacyFunctionStats legacyFunctionStats =
-        new LegacyFunctionStats(statistics, functionServiceStats, 0L, false);
+        new LegacyFunctionStats(statistics, functionServiceStats);
 
     legacyFunctionStats.recordFailedExecution(5, NANOSECONDS, false);
 
@@ -156,7 +159,7 @@ public class LegacyFunctionStatsTest {
   @Test
   public void recordFailedExecution_hasResult_incrementsStats() {
     LegacyFunctionStats legacyFunctionStats =
-        new LegacyFunctionStats(statistics, functionServiceStats, 0L, false);
+        new LegacyFunctionStats(statistics, functionServiceStats);
 
     legacyFunctionStats.recordFailedExecution(5, NANOSECONDS, true);
 
@@ -171,12 +174,53 @@ public class LegacyFunctionStatsTest {
   @Test
   public void recordFailedExecution_incrementsAggregateStats() {
     LegacyFunctionStats legacyFunctionStats =
-        new LegacyFunctionStats(statistics, functionServiceStats, 0L, false);
+        new LegacyFunctionStats(statistics, functionServiceStats);
 
     boolean haveResult = true;
     legacyFunctionStats.recordFailedExecution(5, NANOSECONDS, haveResult);
 
     verify(functionServiceStats)
         .endFunctionExecutionWithException(haveResult);
+  }
+
+  @Test
+  public void close_closesStats() {
+    LegacyFunctionStats legacyFunctionStats =
+        new LegacyFunctionStats(statistics, functionServiceStats);
+
+    legacyFunctionStats.close();
+
+    verify(statistics).close();
+  }
+
+  @Test
+  public void isClosed_returnsFalse_ifCloseNotCalled() {
+    LegacyFunctionStats legacyFunctionStats =
+        new LegacyFunctionStats(statistics, functionServiceStats);
+
+    assertThat(legacyFunctionStats.isClosed())
+        .isFalse();
+  }
+
+  @Test
+  public void isClosed_returnsTrue_ifCloseCalled() {
+    LegacyFunctionStats legacyFunctionStats =
+        new LegacyFunctionStats(statistics, functionServiceStats);
+
+    legacyFunctionStats.close();
+
+    assertThat(legacyFunctionStats.isClosed())
+        .isTrue();
+  }
+
+  @Test
+  public void getStatistics_returnsGivenStatistics() {
+    Statistics statisticsPassedToConstructor = mock(Statistics.class);
+
+    LegacyFunctionStats legacyFunctionStats =
+        new LegacyFunctionStats(statisticsPassedToConstructor, functionServiceStats);
+
+    assertThat(legacyFunctionStats.getStatistics())
+        .isSameAs(statisticsPassedToConstructor);
   }
 }

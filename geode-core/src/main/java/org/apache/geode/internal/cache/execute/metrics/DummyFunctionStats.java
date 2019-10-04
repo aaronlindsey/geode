@@ -14,8 +14,23 @@
  */
 package org.apache.geode.internal.cache.execute.metrics;
 
+import org.apache.geode.Statistics;
+
 /**
  * Implementation of {@link FunctionStats} that doesn't record any stats.
  */
 public class DummyFunctionStats implements FunctionStats {
+  @Override
+  public void close() {
+  }
+
+  @Override
+  public boolean isClosed() {
+    return false;
+  }
+
+  @Override
+  public Statistics getStatistics() {
+    throw new UnsupportedOperationException("Not implemented yet");
+  }
 }

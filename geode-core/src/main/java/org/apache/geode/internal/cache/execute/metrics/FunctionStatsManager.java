@@ -20,17 +20,25 @@ import java.util.function.Supplier;
 
 import io.micrometer.core.instrument.MeterRegistry;
 
+import org.apache.geode.Statistics;
 import org.apache.geode.StatisticsFactory;
-import org.apache.geode.annotations.Immutable;
+import org.apache.geode.StatisticsType;
+import org.apache.geode.annotations.VisibleForTesting;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
+import org.apache.geode.internal.statistics.DummyStatisticsImpl;
 import org.apache.geode.internal.util.JavaWorkarounds;
 
 public class FunctionStatsManager {
 
-  private static final FunctionStats dummyFunctionStats = new DummyFunctionStats();
+  private static final StatisticsType functionStatsType = LegacyFunctionStats.getStatisticsType();
+  private static final Statistics dummyStatistics =
+      new DummyStatisticsImpl(functionStatsType, null, 0);
+  private static final FunctionServiceStats dummyFunctionServiceStats = FunctionServiceStats.createDummy();
+  private static final FunctionStats dummyFunctionStats = new LegacyFunctionStats(dummyStatistics, dummyFunctionServiceStats);
 
   private final boolean statsDisabled;
   private final StatisticsFactory statisticsFactory;
+  private final FunctionServiceStats functionServiceStats;
   private final Supplier<MeterRegistry> meterRegistrySupplier;
   private final Map<String, FunctionStats> functionExecutionStatsMap;
 
@@ -59,11 +67,22 @@ public class FunctionStatsManager {
 
 
   public FunctionStatsManager(boolean statsDisabled, StatisticsFactory statisticsFactory,
+                              FunctionServiceStats functionServiceStats,
                               Supplier<MeterRegistry> meterRegistrySupplier) {
     this.statsDisabled = statsDisabled;
     this.statisticsFactory = statisticsFactory;
+    this.functionServiceStats = functionServiceStats;
     this.meterRegistrySupplier = meterRegistrySupplier;
     this.functionExecutionStatsMap = new ConcurrentHashMap<>();
+  }
+
+  @VisibleForTesting
+  static FunctionStats getDummyFunctionStats() {
+    return dummyFunctionStats;
+  }
+
+  public static Statistics getDummyStatistics() {
+    return dummyStatistics;
   }
 
   public FunctionStats getFunctionStatsByName(String name) {
@@ -74,11 +93,12 @@ public class FunctionStatsManager {
   }
 
   private FunctionStats create(String name){
-    return null;
+    StatisticsType statisticsType = LegacyFunctionStats.getStatisticsType();
+    Statistics statistics = statisticsFactory.createAtomicStatistics(statisticsType, name);
+    return new LegacyFunctionStats(statistics, functionServiceStats);
   }
 
   public void close() {
-    // closing individual function stats
     for (FunctionStats functionstats : functionExecutionStatsMap.values()) {
       functionstats.close();
     }
@@ -106,6 +126,7 @@ public class FunctionStatsManager {
 
   public interface Factory {
     FunctionStatsManager create(boolean statsDisabled, StatisticsFactory statisticsFactory,
+                                FunctionServiceStats functionServiceStats,
                                 Supplier<MeterRegistry> meterRegistrySupplier);
   }
 }

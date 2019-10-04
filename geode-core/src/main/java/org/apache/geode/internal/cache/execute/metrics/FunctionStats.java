@@ -18,14 +18,20 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 import java.util.concurrent.TimeUnit;
 
+import org.apache.geode.Statistics;
+
 public interface FunctionStats {
 
   /**
-   * Closes the <code>FunctionServiceStats</code>.
+   * Frees any resources held by this FunctionStats.
    */
-  default void close() {
+  void close();
 
-  }
+
+  /**
+   * Returns whether the FunctionStats is closed.
+   */
+  boolean isClosed();
 
   /**
    * Returns the current value of the "Total number of completed function.execute() calls" stat.
@@ -125,4 +131,6 @@ public interface FunctionStats {
   default void recordFailedExecution(long elapsed, TimeUnit timeUnit, boolean haveResult) {
 
   }
+
+  Statistics getStatistics();
 }

@@ -20,15 +20,12 @@ import java.util.function.LongSupplier;
 
 import org.apache.geode.StatisticDescriptor;
 import org.apache.geode.Statistics;
-import org.apache.geode.StatisticsFactory;
 import org.apache.geode.StatisticsType;
 import org.apache.geode.StatisticsTypeFactory;
 import org.apache.geode.annotations.Immutable;
 import org.apache.geode.annotations.VisibleForTesting;
 import org.apache.geode.distributed.internal.DistributionStats;
-import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.internal.NanoTimer;
-import org.apache.geode.internal.statistics.DummyStatisticsImpl;
 import org.apache.geode.internal.statistics.StatisticsTypeFactoryImpl;
 
 public class LegacyFunctionStats implements FunctionStats {
@@ -205,22 +202,11 @@ public class LegacyFunctionStats implements FunctionStats {
   private final LongSupplier clock;
   private final BooleanSupplier enableClockStats;
 
-  LegacyFunctionStats() {
-    this(new DummyStatisticsImpl(_type, null, 0), FunctionServiceStats.createDummy(),
-        NanoTimer::getTime, () -> DistributionStats.enableClockStats);
-  }
+  private boolean isClosed = false;
 
-  /**
-   * Constructor.
-   *
-   * @param factory The <code>StatisticsFactory</code> which creates the <code>Statistics</code>
-   *        instance
-   * @param name The name of the <code>Statistics</code>
-   */
-  LegacyFunctionStats(StatisticsFactory factory, String name) {
-    this(factory.createAtomicStatistics(_type, name),
-        ((InternalDistributedSystem) factory).getFunctionServiceStats(),
-        NanoTimer::getTime, () -> DistributionStats.enableClockStats);
+  LegacyFunctionStats(Statistics statistics, FunctionServiceStats functionServiceStats) {
+    this(statistics, functionServiceStats, NanoTimer::getTime,
+        () -> DistributionStats.enableClockStats);
   }
 
   @VisibleForTesting
@@ -238,9 +224,19 @@ public class LegacyFunctionStats implements FunctionStats {
     this.enableClockStats = enableClockStats;
   }
 
+  public static StatisticsType getStatisticsType() {
+    return _type;
+  }
+
   @Override
   public void close() {
     this._stats.close();
+    isClosed = true;
+  }
+
+  @Override
+  public boolean isClosed() {
+    return isClosed;
   }
 
   @Override
@@ -334,6 +330,11 @@ public class LegacyFunctionStats implements FunctionStats {
       this._stats.incInt(_functionExecutionsHasResultRunningId, -1);
     }
     aggregateStats.endFunctionExecutionWithException(haveResult);
+  }
+
+  @Override
+  public Statistics getStatistics() {
+    return _stats;
   }
 
   @VisibleForTesting

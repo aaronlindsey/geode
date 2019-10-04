@@ -18,6 +18,10 @@ import static java.util.Objects.requireNonNull;
 
 import java.util.concurrent.TimeUnit;
 
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
+
+import org.apache.geode.Statistics;
+
 public class DelegatingFunctionStats implements FunctionStats {
 
   private final FunctionStats innerFunctionStats;
@@ -36,6 +40,11 @@ public class DelegatingFunctionStats implements FunctionStats {
   public void close() {
     innerFunctionStats.close();
     functionExecutionsTimer.close();
+  }
+
+  @Override
+  public boolean isClosed() {
+    throw new UnsupportedOperationException("Not implemented yet");
   }
 
   @Override
@@ -88,5 +97,10 @@ public class DelegatingFunctionStats implements FunctionStats {
   public void recordFailedExecution(long elapsed, TimeUnit timeUnit, boolean haveResult) {
     innerFunctionStats.recordFailedExecution(elapsed, timeUnit, haveResult);
     functionExecutionsTimer.recordFailure(elapsed, timeUnit);
+  }
+
+  @Override
+  public Statistics getStatistics() {
+    throw new UnsupportedOperationException("Not implemented yet");
   }
 }

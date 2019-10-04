@@ -555,8 +555,10 @@ public class InternalDistributedSystem extends DistributedSystem
     statisticsManager =
         statisticsManagerFactory.create(originalConfig.getName(), startTime, statsDisabled);
 
+    functionServiceStats = new FunctionServiceStats(statisticsManager, "FunctionExecution");
+
     this.functionStatsManager = functionStatsManagerFactory.create(statsDisabled, statisticsManager,
-        InternalDistributedSystem::getMeterRegistry);
+        functionServiceStats, InternalDistributedSystem::getMeterRegistry);
   }
 
   public SecurityService getSecurityService() {
@@ -1923,16 +1925,13 @@ public class InternalDistributedSystem extends DistributedSystem
     return sb.toString().trim();
   }
 
-  private FunctionServiceStats functionServiceStats = null;
+  private final FunctionServiceStats functionServiceStats;
 
   public FunctionStats getFunctionStats(String name) {
     return functionStatsManager.getFunctionStatsByName(name);
   }
 
-  public synchronized FunctionServiceStats getFunctionServiceStats() {
-    if (functionServiceStats == null) {
-      functionServiceStats = new FunctionServiceStats(this, "FunctionExecution");
-    }
+  public FunctionServiceStats getFunctionServiceStats() {
     return functionServiceStats;
   }
 
