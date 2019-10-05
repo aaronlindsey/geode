@@ -14,16 +14,22 @@
  */
 package org.apache.geode.internal.cache.execute.metrics;
 
+import static java.lang.Boolean.TRUE;
+
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 
 import org.apache.geode.Statistics;
 import org.apache.geode.StatisticsFactory;
 import org.apache.geode.StatisticsType;
 import org.apache.geode.annotations.VisibleForTesting;
+import org.apache.geode.cache.execute.Function;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.internal.statistics.DummyStatisticsImpl;
 import org.apache.geode.internal.util.JavaWorkarounds;
@@ -90,6 +96,10 @@ public class FunctionStatsManager {
       return dummyFunctionStats;
     }
     return JavaWorkarounds.computeIfAbsent(functionExecutionStatsMap, name, this::create);
+  }
+
+  public FunctionStats getFunctionStatsFor(Function function) {
+    return getFunctionStatsByName(function.getId());
   }
 
   private FunctionStats create(String name){
