@@ -14,11 +14,18 @@
  */
 package org.apache.geode.internal.cache.execute.metrics;
 
+import static java.lang.Boolean.FALSE;
+import static java.lang.Boolean.TRUE;
+import static java.util.Objects.requireNonNull;
+
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 
 import org.apache.geode.StatisticDescriptor;
 import org.apache.geode.Statistics;
@@ -196,39 +203,49 @@ public class LegacyFunctionStats implements FunctionStats {
     _resultsReceived = _type.nameToId(RESULTS_RECEIVED);
   }
 
-  private final String functionId;
   private final MeterRegistry meterRegistry;
-  /**
-   * The <code>Statistics</code> instance to which most behavior is delegated
-   */
   private final Statistics _stats;
   private final FunctionServiceStats aggregateStats;
   private final LongSupplier clock;
   private final BooleanSupplier enableClockStats;
+  private final Timer successTimer;
+  private final Timer failureTimer;
 
   private boolean isClosed = false;
 
   LegacyFunctionStats(String functionId, MeterRegistry meterRegistry, Statistics statistics,
       FunctionServiceStats functionServiceStats) {
-    this(functionId, meterRegistry, statistics, functionServiceStats,
-        NanoTimer::getTime, () -> DistributionStats.enableClockStats);
+    this(functionId, meterRegistry, statistics, functionServiceStats, NanoTimer::getTime, () -> DistributionStats.enableClockStats, LegacyFunctionStats::registerSuccessTimer, LegacyFunctionStats::registerFailureTimer);
   }
 
   @VisibleForTesting
   LegacyFunctionStats(String functionId, MeterRegistry meterRegistry, Statistics stats,
       FunctionServiceStats aggregateStats, long clockResult, boolean enableClockStatsResult) {
-    this(functionId, meterRegistry, stats, aggregateStats, () -> clockResult,
-        () -> enableClockStatsResult);
+    this(functionId, meterRegistry, stats, aggregateStats, () -> clockResult, () -> enableClockStatsResult, LegacyFunctionStats::registerSuccessTimer, LegacyFunctionStats::registerFailureTimer);
+  }
+
+  @VisibleForTesting
+  LegacyFunctionStats(String functionId, MeterRegistry meterRegistry, Statistics stats,
+      FunctionServiceStats aggregateStats, long clockResult, boolean enableClockStatsResult,
+      Timer successTimerResult, Timer registerFailureResult) {
+    this(functionId, meterRegistry, stats, aggregateStats, () -> clockResult, () -> enableClockStatsResult, (a, b) -> successTimerResult, (a, b) -> registerFailureResult);
   }
 
   private LegacyFunctionStats(String functionId, MeterRegistry meterRegistry, Statistics stats,
-      FunctionServiceStats aggregateStats, LongSupplier clock, BooleanSupplier enableClockStats) {
-    this.functionId = functionId;
+      FunctionServiceStats aggregateStats, LongSupplier clock, BooleanSupplier enableClockStats,
+      BiFunction<String, MeterRegistry, Timer> registerSuccessTimerFunction,
+      BiFunction<String, MeterRegistry, Timer> registerFailureTimerFunction) {
+
+    requireNonNull(meterRegistry);
+
     this.meterRegistry = meterRegistry;
     this._stats = stats;
     this.aggregateStats = aggregateStats;
     this.clock = clock;
     this.enableClockStats = enableClockStats;
+
+    successTimer = registerSuccessTimerFunction.apply(functionId, meterRegistry);
+    failureTimer = registerFailureTimerFunction.apply(functionId, meterRegistry);
   }
 
   public static StatisticsType getStatisticsType() {
@@ -237,6 +254,11 @@ public class LegacyFunctionStats implements FunctionStats {
 
   @Override
   public void close() {
+    meterRegistry.remove(successTimer);
+    successTimer.close();
+
+    meterRegistry.remove(failureTimer);
+    failureTimer.close();
     this._stats.close();
     isClosed = true;
   }
@@ -300,6 +322,8 @@ public class LegacyFunctionStats implements FunctionStats {
 
   @Override
   public void recordSuccessfulExecution(long elapsed, TimeUnit timeUnit, boolean haveResult) {
+    successTimer.record(elapsed, timeUnit);
+
     // Increment number of function executions completed
     this._stats.incInt(_functionExecutionsCompletedId, 1);
 
@@ -326,6 +350,8 @@ public class LegacyFunctionStats implements FunctionStats {
 
   @Override
   public void recordFailedExecution(long elapsed, TimeUnit timeUnit, boolean haveResult) {
+    failureTimer.record(elapsed, timeUnit);
+
     // Decrement function Executions running.
     this._stats.incInt(_functionExecutionsRunningId, -1);
 
@@ -372,5 +398,21 @@ public class LegacyFunctionStats implements FunctionStats {
   @VisibleForTesting
   static int functionExecutionExceptionsId() {
     return _functionExecutionExceptionsId;
+  }
+
+  private static Timer registerSuccessTimer(String functionId, MeterRegistry meterRegistry) {
+    return Timer.builder("geode.function.executions")
+        .description("Count and total time of successful function executions")
+        .tag("function", functionId)
+        .tag("succeeded", TRUE.toString())
+        .register(meterRegistry);
+  }
+
+  private static Timer registerFailureTimer(String functionId, MeterRegistry meterRegistry) {
+    return Timer.builder("geode.function.executions")
+        .description("Count and total time of failed function executions")
+        .tag("function", functionId)
+        .tag("succeeded", FALSE.toString())
+        .register(meterRegistry);
   }
 }

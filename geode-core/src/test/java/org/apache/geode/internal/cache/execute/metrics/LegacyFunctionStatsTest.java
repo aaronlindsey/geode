@@ -22,6 +22,7 @@ import static org.apache.geode.internal.cache.execute.metrics.LegacyFunctionStat
 import static org.apache.geode.internal.cache.execute.metrics.LegacyFunctionStats.functionExecutionsHasResultRunningId;
 import static org.apache.geode.internal.cache.execute.metrics.LegacyFunctionStats.functionExecutionsRunningId;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -30,6 +31,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.Before;
 import org.junit.Rule;
@@ -42,6 +44,7 @@ import org.mockito.quality.Strictness;
 import org.apache.geode.Statistics;
 
 public class LegacyFunctionStatsTest {
+  private  static final String FUNCTION_ID = "functionId";
 
   @Rule
   public MockitoRule mockitoRule = MockitoJUnit.rule().strictness(Strictness.STRICT_STUBS);
@@ -60,9 +63,66 @@ public class LegacyFunctionStatsTest {
   }
 
   @Test
+  public void constructor_registersSuccessTimer() {
+    new LegacyFunctionStats(FUNCTION_ID, meterRegistry, statistics, functionServiceStats);
+
+    assertThat(successTimer())
+        .as("geode.function.executions timer with tags function=%s, succeeded=true", FUNCTION_ID)
+        .isNotNull();
+    assertThat(successTimer().getId().getDescription())
+        .as("success timer description")
+        .isEqualTo("Count and total time of successful function executions");
+  }
+
+  @Test
+  public void constructor_registersFailureTimer() {
+    new LegacyFunctionStats(FUNCTION_ID, meterRegistry, statistics, functionServiceStats);
+
+    assertThat(failureTimer())
+        .as("geode.function.executions timer with tags function=%s, succeeded=false", FUNCTION_ID)
+        .isNotNull();
+    assertThat(failureTimer().getId().getDescription())
+        .as("failure timer description")
+        .isEqualTo("Count and total time of failed function executions");
+  }
+
+  @Test
+  public void constructor_throws_ifMeterRegistryIsNull() {
+    Throwable thrown = catchThrowable(() -> new LegacyFunctionStats(FUNCTION_ID, null, statistics, functionServiceStats));
+
+    assertThat(thrown)
+        .isInstanceOf(NullPointerException.class);
+  }
+
+  @Test
+  public void recordSuccessfulExecution_incrementsSuccessTimerCount() {
+    LegacyFunctionStats legacyFunctionStats =
+        new LegacyFunctionStats(FUNCTION_ID, meterRegistry, statistics, functionServiceStats);
+
+    legacyFunctionStats.recordSuccessfulExecution(5, NANOSECONDS, false);
+
+    assertThat(successTimer().count())
+        .as("Success timer count")
+        .isEqualTo(1);
+  }
+
+  @Test
+  public void recordSuccessfulExecution_incrementsSuccessTimerTotalTime() {
+    LegacyFunctionStats legacyFunctionStats =
+        new LegacyFunctionStats(FUNCTION_ID, meterRegistry, statistics, functionServiceStats);
+
+    long elapsedNanos = 5;
+    legacyFunctionStats.recordSuccessfulExecution(elapsedNanos, NANOSECONDS, false);
+
+    assertThat(successTimer().totalTime(NANOSECONDS))
+        .as("Success timer total time")
+        .isEqualTo(elapsedNanos);
+  }
+
+  @Test
   public void recordSuccessfulExecution_noResult_clockStatsDisabled_incrementsStats() {
     LegacyFunctionStats legacyFunctionStats =
-        new LegacyFunctionStats("functionId", meterRegistry, statistics, functionServiceStats, 0L,
+        new LegacyFunctionStats(FUNCTION_ID, meterRegistry, statistics, functionServiceStats, 0L,
             false);
 
     legacyFunctionStats.recordSuccessfulExecution(5, NANOSECONDS, false);
@@ -82,7 +142,7 @@ public class LegacyFunctionStatsTest {
   @Test
   public void recordSuccessfulExecution_hasResult_clockStatsDisabled_incrementsStats() {
     LegacyFunctionStats legacyFunctionStats =
-        new LegacyFunctionStats("functionId", meterRegistry, statistics, functionServiceStats, 0L,
+        new LegacyFunctionStats(FUNCTION_ID, meterRegistry, statistics, functionServiceStats, 0L,
             false);
 
     legacyFunctionStats.recordSuccessfulExecution(5, NANOSECONDS, true);
@@ -102,7 +162,7 @@ public class LegacyFunctionStatsTest {
   @Test
   public void recordSuccessfulExecution_noResult_clockStatsEnabled_incrementsStats() {
     LegacyFunctionStats legacyFunctionStats =
-        new LegacyFunctionStats("functionId", meterRegistry, statistics, functionServiceStats, 0L,
+        new LegacyFunctionStats(FUNCTION_ID, meterRegistry, statistics, functionServiceStats, 0L,
             true);
 
     long elapsedNanos = 5;
@@ -123,7 +183,7 @@ public class LegacyFunctionStatsTest {
   @Test
   public void recordSuccessfulExecution_hasResult_clockStatsEnabled_incrementsStats() {
     LegacyFunctionStats legacyFunctionStats =
-        new LegacyFunctionStats("functionId", meterRegistry, statistics, functionServiceStats, 0L,
+        new LegacyFunctionStats(FUNCTION_ID, meterRegistry, statistics, functionServiceStats, 0L,
             true);
 
     long elapsedNanos = 5;
@@ -144,7 +204,7 @@ public class LegacyFunctionStatsTest {
   @Test
   public void recordSuccessfulExecution_incrementsAggregateStats() {
     LegacyFunctionStats legacyFunctionStats =
-        new LegacyFunctionStats("functionId", meterRegistry, statistics, functionServiceStats);
+        new LegacyFunctionStats(FUNCTION_ID, meterRegistry, statistics, functionServiceStats);
 
     long elapsedNanos = 5;
     boolean haveResult = true;
@@ -155,9 +215,35 @@ public class LegacyFunctionStatsTest {
   }
 
   @Test
+  public void recordFailedExecution_incrementsFailureTimerCount() {
+    LegacyFunctionStats legacyFunctionStats =
+        new LegacyFunctionStats(FUNCTION_ID, meterRegistry, statistics, functionServiceStats);
+
+    long elapsedNanos = 5;
+    legacyFunctionStats.recordFailedExecution(elapsedNanos, NANOSECONDS, false);
+
+    assertThat(failureTimer().count())
+        .as("Failure timer count")
+        .isEqualTo(1);
+  }
+
+  @Test
+  public void recordFailedExecution_incrementsFailureTimerTotalTime() {
+    LegacyFunctionStats legacyFunctionStats =
+        new LegacyFunctionStats(FUNCTION_ID, meterRegistry, statistics, functionServiceStats);
+
+    long elapsedNanos = 5;
+    legacyFunctionStats.recordFailedExecution(elapsedNanos, NANOSECONDS, false);
+
+    assertThat(failureTimer().totalTime(NANOSECONDS))
+        .as("Failure timer total time")
+        .isEqualTo(elapsedNanos);
+  }
+
+  @Test
   public void recordFailedExecution_noResult_incrementsStats() {
     LegacyFunctionStats legacyFunctionStats =
-        new LegacyFunctionStats("functionId", meterRegistry, statistics, functionServiceStats);
+        new LegacyFunctionStats(FUNCTION_ID, meterRegistry, statistics, functionServiceStats);
 
     legacyFunctionStats.recordFailedExecution(5, NANOSECONDS, false);
 
@@ -172,7 +258,7 @@ public class LegacyFunctionStatsTest {
   @Test
   public void recordFailedExecution_hasResult_incrementsStats() {
     LegacyFunctionStats legacyFunctionStats =
-        new LegacyFunctionStats("functionId", meterRegistry, statistics, functionServiceStats);
+        new LegacyFunctionStats(FUNCTION_ID, meterRegistry, statistics, functionServiceStats);
 
     legacyFunctionStats.recordFailedExecution(5, NANOSECONDS, true);
 
@@ -187,7 +273,7 @@ public class LegacyFunctionStatsTest {
   @Test
   public void recordFailedExecution_incrementsAggregateStats() {
     LegacyFunctionStats legacyFunctionStats =
-        new LegacyFunctionStats("functionId", meterRegistry, statistics, functionServiceStats);
+        new LegacyFunctionStats(FUNCTION_ID, meterRegistry, statistics, functionServiceStats);
 
     boolean haveResult = true;
     legacyFunctionStats.recordFailedExecution(5, NANOSECONDS, haveResult);
@@ -197,9 +283,47 @@ public class LegacyFunctionStatsTest {
   }
 
   @Test
+  public void close_removesSuccessTimer() {
+    LegacyFunctionStats legacyFunctionStats =
+        new LegacyFunctionStats(FUNCTION_ID, meterRegistry, statistics, functionServiceStats);
+
+    legacyFunctionStats.close();
+
+    assertThat(successTimer())
+        .as("geode.function.executions timer with tags function=%s, succeeded=true", FUNCTION_ID)
+        .isNull();
+  }
+
+  @Test
+  public void close_removesFailureTimer() {
+    LegacyFunctionStats legacyFunctionStats =
+        new LegacyFunctionStats(FUNCTION_ID, meterRegistry, statistics, functionServiceStats);
+
+    legacyFunctionStats.close();
+
+    assertThat(failureTimer())
+        .as("geode.function.executions timer with tags function=%s, succeeded=false", FUNCTION_ID)
+        .isNull();
+  }
+
+  @Test
+  public void close_closesTimers() {
+    Timer successTimer = mock(Timer.class);
+    Timer failureTimer = mock(Timer.class);
+    LegacyFunctionStats legacyFunctionStats =
+        new LegacyFunctionStats(FUNCTION_ID, mock(MeterRegistry.class), statistics,
+            functionServiceStats, 0L, false, successTimer, failureTimer);
+
+    legacyFunctionStats.close();
+
+    verify(successTimer).close();
+    verify(failureTimer).close();
+  }
+
+  @Test
   public void close_closesStats() {
     LegacyFunctionStats legacyFunctionStats =
-        new LegacyFunctionStats("functionId", meterRegistry, statistics, functionServiceStats);
+        new LegacyFunctionStats(FUNCTION_ID, meterRegistry, statistics, functionServiceStats);
 
     legacyFunctionStats.close();
 
@@ -209,7 +333,7 @@ public class LegacyFunctionStatsTest {
   @Test
   public void isClosed_returnsFalse_ifCloseNotCalled() {
     LegacyFunctionStats legacyFunctionStats =
-        new LegacyFunctionStats("functionId", meterRegistry, statistics, functionServiceStats);
+        new LegacyFunctionStats(FUNCTION_ID, meterRegistry, statistics, functionServiceStats);
 
     assertThat(legacyFunctionStats.isClosed())
         .isFalse();
@@ -218,7 +342,7 @@ public class LegacyFunctionStatsTest {
   @Test
   public void isClosed_returnsTrue_ifCloseCalled() {
     LegacyFunctionStats legacyFunctionStats =
-        new LegacyFunctionStats("functionId", meterRegistry, statistics, functionServiceStats);
+        new LegacyFunctionStats(FUNCTION_ID, meterRegistry, statistics, functionServiceStats);
 
     legacyFunctionStats.close();
 
@@ -231,10 +355,26 @@ public class LegacyFunctionStatsTest {
     Statistics statisticsPassedToConstructor = mock(Statistics.class);
 
     LegacyFunctionStats legacyFunctionStats =
-        new LegacyFunctionStats("functionId", meterRegistry, statisticsPassedToConstructor,
+        new LegacyFunctionStats(FUNCTION_ID, meterRegistry, statisticsPassedToConstructor,
             functionServiceStats);
 
     assertThat(legacyFunctionStats.getStatistics())
         .isSameAs(statisticsPassedToConstructor);
+  }
+
+  private Timer successTimer() {
+    return functionExecutionsTimer(true);
+  }
+
+  private Timer failureTimer() {
+    return functionExecutionsTimer(false);
+  }
+
+  private Timer functionExecutionsTimer(boolean succeededTagValue) {
+    return meterRegistry
+        .find("geode.function.executions")
+        .tag("function", FUNCTION_ID)
+        .tag("succeeded", String.valueOf(succeededTagValue))
+        .timer();
   }
 }
