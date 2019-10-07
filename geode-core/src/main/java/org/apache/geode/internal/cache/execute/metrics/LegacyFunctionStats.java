@@ -18,6 +18,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 
+import io.micrometer.core.instrument.MeterRegistry;
+
 import org.apache.geode.StatisticDescriptor;
 import org.apache.geode.Statistics;
 import org.apache.geode.StatisticsType;
@@ -194,6 +196,8 @@ public class LegacyFunctionStats implements FunctionStats {
     _resultsReceived = _type.nameToId(RESULTS_RECEIVED);
   }
 
+  private final String functionId;
+  private final MeterRegistry meterRegistry;
   /**
    * The <code>Statistics</code> instance to which most behavior is delegated
    */
@@ -204,20 +208,23 @@ public class LegacyFunctionStats implements FunctionStats {
 
   private boolean isClosed = false;
 
-  LegacyFunctionStats(Statistics statistics, FunctionServiceStats functionServiceStats) {
-    this(statistics, functionServiceStats, NanoTimer::getTime,
-        () -> DistributionStats.enableClockStats);
+  LegacyFunctionStats(String functionId, MeterRegistry meterRegistry, Statistics statistics,
+      FunctionServiceStats functionServiceStats) {
+    this(functionId, meterRegistry, statistics, functionServiceStats,
+        NanoTimer::getTime, () -> DistributionStats.enableClockStats);
   }
 
   @VisibleForTesting
-  LegacyFunctionStats(Statistics stats, FunctionServiceStats aggregateStats,
-      long clockResult, boolean enableClockStatsResult) {
-    this(stats, aggregateStats, () -> clockResult, () -> enableClockStatsResult);
+  LegacyFunctionStats(String functionId, MeterRegistry meterRegistry, Statistics stats,
+      FunctionServiceStats aggregateStats, long clockResult, boolean enableClockStatsResult) {
+    this(functionId, meterRegistry, stats, aggregateStats, () -> clockResult,
+        () -> enableClockStatsResult);
   }
 
-  @VisibleForTesting
-  LegacyFunctionStats(Statistics stats, FunctionServiceStats aggregateStats,
-      LongSupplier clock, BooleanSupplier enableClockStats) {
+  private LegacyFunctionStats(String functionId, MeterRegistry meterRegistry, Statistics stats,
+      FunctionServiceStats aggregateStats, LongSupplier clock, BooleanSupplier enableClockStats) {
+    this.functionId = functionId;
+    this.meterRegistry = meterRegistry;
     this._stats = stats;
     this.aggregateStats = aggregateStats;
     this.clock = clock;

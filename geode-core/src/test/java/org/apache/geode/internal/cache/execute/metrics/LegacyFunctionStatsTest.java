@@ -29,6 +29,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mock;
@@ -37,7 +40,6 @@ import org.mockito.junit.MockitoRule;
 import org.mockito.quality.Strictness;
 
 import org.apache.geode.Statistics;
-import org.apache.geode.internal.admin.Stat;
 
 public class LegacyFunctionStatsTest {
 
@@ -50,10 +52,18 @@ public class LegacyFunctionStatsTest {
   @Mock
   private FunctionServiceStats functionServiceStats;
 
+  private MeterRegistry meterRegistry;
+
+  @Before
+  public void setUp() {
+    meterRegistry = new SimpleMeterRegistry();
+  }
+
   @Test
   public void recordSuccessfulExecution_noResult_clockStatsDisabled_incrementsStats() {
     LegacyFunctionStats legacyFunctionStats =
-        new LegacyFunctionStats(statistics, functionServiceStats, 0L, false);
+        new LegacyFunctionStats("functionId", meterRegistry, statistics, functionServiceStats, 0L,
+            false);
 
     legacyFunctionStats.recordSuccessfulExecution(5, NANOSECONDS, false);
 
@@ -72,7 +82,8 @@ public class LegacyFunctionStatsTest {
   @Test
   public void recordSuccessfulExecution_hasResult_clockStatsDisabled_incrementsStats() {
     LegacyFunctionStats legacyFunctionStats =
-        new LegacyFunctionStats(statistics, functionServiceStats, 0L, false);
+        new LegacyFunctionStats("functionId", meterRegistry, statistics, functionServiceStats, 0L,
+            false);
 
     legacyFunctionStats.recordSuccessfulExecution(5, NANOSECONDS, true);
 
@@ -91,7 +102,8 @@ public class LegacyFunctionStatsTest {
   @Test
   public void recordSuccessfulExecution_noResult_clockStatsEnabled_incrementsStats() {
     LegacyFunctionStats legacyFunctionStats =
-        new LegacyFunctionStats(statistics, functionServiceStats, 0L, true);
+        new LegacyFunctionStats("functionId", meterRegistry, statistics, functionServiceStats, 0L,
+            true);
 
     long elapsedNanos = 5;
     legacyFunctionStats.recordSuccessfulExecution(elapsedNanos, NANOSECONDS, false);
@@ -111,7 +123,8 @@ public class LegacyFunctionStatsTest {
   @Test
   public void recordSuccessfulExecution_hasResult_clockStatsEnabled_incrementsStats() {
     LegacyFunctionStats legacyFunctionStats =
-        new LegacyFunctionStats(statistics, functionServiceStats, 0L, true);
+        new LegacyFunctionStats("functionId", meterRegistry, statistics, functionServiceStats, 0L,
+            true);
 
     long elapsedNanos = 5;
     legacyFunctionStats.recordSuccessfulExecution(elapsedNanos, NANOSECONDS, true);
@@ -131,7 +144,7 @@ public class LegacyFunctionStatsTest {
   @Test
   public void recordSuccessfulExecution_incrementsAggregateStats() {
     LegacyFunctionStats legacyFunctionStats =
-        new LegacyFunctionStats(statistics, functionServiceStats);
+        new LegacyFunctionStats("functionId", meterRegistry, statistics, functionServiceStats);
 
     long elapsedNanos = 5;
     boolean haveResult = true;
@@ -144,7 +157,7 @@ public class LegacyFunctionStatsTest {
   @Test
   public void recordFailedExecution_noResult_incrementsStats() {
     LegacyFunctionStats legacyFunctionStats =
-        new LegacyFunctionStats(statistics, functionServiceStats);
+        new LegacyFunctionStats("functionId", meterRegistry, statistics, functionServiceStats);
 
     legacyFunctionStats.recordFailedExecution(5, NANOSECONDS, false);
 
@@ -159,7 +172,7 @@ public class LegacyFunctionStatsTest {
   @Test
   public void recordFailedExecution_hasResult_incrementsStats() {
     LegacyFunctionStats legacyFunctionStats =
-        new LegacyFunctionStats(statistics, functionServiceStats);
+        new LegacyFunctionStats("functionId", meterRegistry, statistics, functionServiceStats);
 
     legacyFunctionStats.recordFailedExecution(5, NANOSECONDS, true);
 
@@ -174,7 +187,7 @@ public class LegacyFunctionStatsTest {
   @Test
   public void recordFailedExecution_incrementsAggregateStats() {
     LegacyFunctionStats legacyFunctionStats =
-        new LegacyFunctionStats(statistics, functionServiceStats);
+        new LegacyFunctionStats("functionId", meterRegistry, statistics, functionServiceStats);
 
     boolean haveResult = true;
     legacyFunctionStats.recordFailedExecution(5, NANOSECONDS, haveResult);
@@ -186,7 +199,7 @@ public class LegacyFunctionStatsTest {
   @Test
   public void close_closesStats() {
     LegacyFunctionStats legacyFunctionStats =
-        new LegacyFunctionStats(statistics, functionServiceStats);
+        new LegacyFunctionStats("functionId", meterRegistry, statistics, functionServiceStats);
 
     legacyFunctionStats.close();
 
@@ -196,7 +209,7 @@ public class LegacyFunctionStatsTest {
   @Test
   public void isClosed_returnsFalse_ifCloseNotCalled() {
     LegacyFunctionStats legacyFunctionStats =
-        new LegacyFunctionStats(statistics, functionServiceStats);
+        new LegacyFunctionStats("functionId", meterRegistry, statistics, functionServiceStats);
 
     assertThat(legacyFunctionStats.isClosed())
         .isFalse();
@@ -205,7 +218,7 @@ public class LegacyFunctionStatsTest {
   @Test
   public void isClosed_returnsTrue_ifCloseCalled() {
     LegacyFunctionStats legacyFunctionStats =
-        new LegacyFunctionStats(statistics, functionServiceStats);
+        new LegacyFunctionStats("functionId", meterRegistry, statistics, functionServiceStats);
 
     legacyFunctionStats.close();
 
@@ -218,7 +231,8 @@ public class LegacyFunctionStatsTest {
     Statistics statisticsPassedToConstructor = mock(Statistics.class);
 
     LegacyFunctionStats legacyFunctionStats =
-        new LegacyFunctionStats(statisticsPassedToConstructor, functionServiceStats);
+        new LegacyFunctionStats("functionId", meterRegistry, statisticsPassedToConstructor,
+            functionServiceStats);
 
     assertThat(legacyFunctionStats.getStatistics())
         .isSameAs(statisticsPassedToConstructor);

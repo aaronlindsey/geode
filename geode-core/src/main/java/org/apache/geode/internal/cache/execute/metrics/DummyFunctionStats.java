@@ -21,8 +21,7 @@ import org.apache.geode.Statistics;
  */
 public class DummyFunctionStats implements FunctionStats {
   @Override
-  public void close() {
-  }
+  public void close() {}
 
   @Override
   public boolean isClosed() {

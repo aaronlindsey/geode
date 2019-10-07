@@ -18,8 +18,6 @@ import static java.util.Objects.requireNonNull;
 
 import java.util.concurrent.TimeUnit;
 
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
-
 import org.apache.geode.Statistics;
 
 public class DelegatingFunctionStats implements FunctionStats {

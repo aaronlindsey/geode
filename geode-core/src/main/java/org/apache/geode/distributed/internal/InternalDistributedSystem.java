@@ -529,13 +529,13 @@ public class InternalDistributedSystem extends DistributedSystem
    *
    * <p>
    * See {@link #connect} for a list of exceptions that may be thrown.
-   *  @param config the configuration for the connection
+   *
+   * @param config the configuration for the connection
    * @param statisticsManagerFactory creates the statistics manager for this member
-   * @param functionStatsManagerFactory
    */
   private InternalDistributedSystem(ConnectionConfig config,
-                                    StatisticsManagerFactory statisticsManagerFactory,
-                                    FunctionStatsManager.Factory functionStatsManagerFactory) {
+      StatisticsManagerFactory statisticsManagerFactory,
+      FunctionStatsManager.Factory functionStatsManagerFactory) {
     alertingSession = AlertingSession.create();
     alertingService = new InternalAlertingServiceFactory().create();
     loggingSession = LoggingSession.create();
