@@ -121,6 +121,7 @@ import org.apache.geode.logging.internal.spi.LogConfigListener;
 import org.apache.geode.logging.internal.spi.LogConfigSupplier;
 import org.apache.geode.logging.internal.spi.LogFile;
 import org.apache.geode.management.ManagementException;
+import org.apache.geode.metrics.internal.MeterRegistrySupplier;
 import org.apache.geode.pdx.internal.TypeRegistry;
 import org.apache.geode.security.GemFireSecurityException;
 import org.apache.geode.security.PostProcessor;
@@ -558,7 +559,7 @@ public class InternalDistributedSystem extends DistributedSystem
     functionServiceStats = new FunctionServiceStats(statisticsManager, "FunctionExecution");
 
     this.functionStatsManager = functionStatsManagerFactory.create(statsDisabled, statisticsManager,
-        functionServiceStats, InternalDistributedSystem::getMeterRegistry);
+        functionServiceStats, new MeterRegistrySupplier());
   }
 
   public SecurityService getSecurityService() {
@@ -2940,15 +2941,6 @@ public class InternalDistributedSystem extends DistributedSystem
 
   public InternalCache getCache() {
     return dm == null ? null : dm.getCache();
-  }
-
-  public static MeterRegistry getMeterRegistry() {
-    InternalDistributedSystem connectedInstance = InternalDistributedSystem.getConnectedInstance();
-    if (connectedInstance == null) {
-      return null;
-    }
-    InternalCache cache = connectedInstance.getCache();
-    return cache == null ? null : cache.getMeterRegistry();
   }
 
   private static StatisticsManagerFactory defaultStatisticsManagerFactory() {

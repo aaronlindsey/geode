@@ -156,7 +156,7 @@ public class FunctionStatsManagerTest {
   private static Timer getTimer(MeterRegistry meterRegistry, String functionId, boolean succeeded) {
     return meterRegistry
         .find("geode.function.executions")
-        .tag("functionId", functionId)
+        .tag("function", functionId)
         .tag("succeeded", String.valueOf(succeeded))
         .timer();
   }

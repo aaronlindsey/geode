@@ -37,7 +37,7 @@ public class FunctionStatsManager {
       new DummyStatisticsImpl(functionStatsType, null, 0);
   private static final FunctionServiceStats dummyFunctionServiceStats =
       FunctionServiceStats.createDummy();
-  private static final FunctionStats dummyFunctionStats = new FunctionStatsImpl(null,
+  private static final FunctionStats dummyFunctionStats = new FunctionStatsImpl("",
       new NoopMeterRegistry(), dummyStatistics, dummyFunctionServiceStats);
 
   private final boolean statsDisabled;
@@ -101,7 +101,7 @@ public class FunctionStatsManager {
   private FunctionStats create(String name) {
     StatisticsType statisticsType = FunctionStatsImpl.getStatisticsType();
     Statistics statistics = statisticsFactory.createAtomicStatistics(statisticsType, name);
-    return new FunctionStatsImpl("functionId", meterRegistrySupplier.get(), statistics,
+    return new FunctionStatsImpl(name, meterRegistrySupplier.get(), statistics,
         functionServiceStats);
   }
 

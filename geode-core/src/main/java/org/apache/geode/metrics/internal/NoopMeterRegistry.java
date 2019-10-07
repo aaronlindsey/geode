@@ -33,10 +33,21 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.distribution.DistributionStatisticConfig;
 import io.micrometer.core.instrument.distribution.pause.PauseDetector;
+import io.micrometer.core.instrument.noop.NoopCounter;
+import io.micrometer.core.instrument.noop.NoopDistributionSummary;
+import io.micrometer.core.instrument.noop.NoopFunctionCounter;
+import io.micrometer.core.instrument.noop.NoopFunctionTimer;
+import io.micrometer.core.instrument.noop.NoopGauge;
+import io.micrometer.core.instrument.noop.NoopLongTaskTimer;
+import io.micrometer.core.instrument.noop.NoopMeter;
+import io.micrometer.core.instrument.noop.NoopTimer;
+
+import org.apache.geode.annotations.VisibleForTesting;
 
 public class NoopMeterRegistry extends MeterRegistry {
 
-  private static final Clock NOOP_CLOCK = new Clock() {
+  @VisibleForTesting
+  static final Clock NOOP_CLOCK = new Clock() {
     @Override
     public long wallTime() {
       return 0;
@@ -58,55 +69,55 @@ public class NoopMeterRegistry extends MeterRegistry {
 
   @Override
   protected <T> Gauge newGauge(Meter.Id id, T obj, ToDoubleFunction<T> valueFunction) {
-    return null;
+    return new NoopGauge(id);
   }
 
   @Override
   protected Counter newCounter(Meter.Id id) {
-    return null;
+    return new NoopCounter(id);
   }
 
   @Override
   protected LongTaskTimer newLongTaskTimer(Meter.Id id) {
-    return null;
+    return new NoopLongTaskTimer(id);
   }
 
   @Override
   protected Timer newTimer(Meter.Id id, DistributionStatisticConfig distributionStatisticConfig,
       PauseDetector pauseDetector) {
-    return null;
+    return new NoopTimer(id);
   }
 
   @Override
   protected DistributionSummary newDistributionSummary(Meter.Id id,
       DistributionStatisticConfig distributionStatisticConfig, double scale) {
-    return null;
+    return new NoopDistributionSummary(id);
   }
 
   @Override
   protected Meter newMeter(Meter.Id id, Meter.Type type, Iterable<Measurement> measurements) {
-    return null;
+    return new NoopMeter(id);
   }
 
   @Override
   protected <T> FunctionTimer newFunctionTimer(Meter.Id id, T obj, ToLongFunction<T> countFunction,
       ToDoubleFunction<T> totalTimeFunction, TimeUnit totalTimeFunctionUnit) {
-    return null;
+    return new NoopFunctionTimer(id);
   }
 
   @Override
   protected <T> FunctionCounter newFunctionCounter(Meter.Id id, T obj,
       ToDoubleFunction<T> countFunction) {
-    return null;
+    return new NoopFunctionCounter(id);
   }
 
   @Override
   protected TimeUnit getBaseTimeUnit() {
-    return null;
+    return TimeUnit.SECONDS;
   }
 
   @Override
   protected DistributionStatisticConfig defaultHistogramConfig() {
-    return null;
+    return DistributionStatisticConfig.NONE;
   }
 }
