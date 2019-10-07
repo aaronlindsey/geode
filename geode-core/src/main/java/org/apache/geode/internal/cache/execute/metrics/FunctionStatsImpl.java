@@ -18,7 +18,6 @@ import static java.lang.Boolean.FALSE;
 import static java.lang.Boolean.TRUE;
 import static java.util.Objects.requireNonNull;
 
-import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
@@ -37,7 +36,7 @@ import org.apache.geode.distributed.internal.DistributionStats;
 import org.apache.geode.internal.NanoTimer;
 import org.apache.geode.internal.statistics.StatisticsTypeFactoryImpl;
 
-public class LegacyFunctionStats implements FunctionStats {
+public class FunctionStatsImpl implements FunctionStats {
 
   private static final String statName = "FunctionStatistics";
 
@@ -213,28 +212,28 @@ public class LegacyFunctionStats implements FunctionStats {
 
   private boolean isClosed = false;
 
-  LegacyFunctionStats(String functionId, MeterRegistry meterRegistry, Statistics statistics,
-      FunctionServiceStats functionServiceStats) {
-    this(functionId, meterRegistry, statistics, functionServiceStats, NanoTimer::getTime, () -> DistributionStats.enableClockStats, LegacyFunctionStats::registerSuccessTimer, LegacyFunctionStats::registerFailureTimer);
+  FunctionStatsImpl(String functionId, MeterRegistry meterRegistry, Statistics statistics,
+                    FunctionServiceStats functionServiceStats) {
+    this(functionId, meterRegistry, statistics, functionServiceStats, NanoTimer::getTime, () -> DistributionStats.enableClockStats, FunctionStatsImpl::registerSuccessTimer, FunctionStatsImpl::registerFailureTimer);
   }
 
   @VisibleForTesting
-  LegacyFunctionStats(String functionId, MeterRegistry meterRegistry, Statistics stats,
-      FunctionServiceStats aggregateStats, long clockResult, boolean enableClockStatsResult) {
-    this(functionId, meterRegistry, stats, aggregateStats, () -> clockResult, () -> enableClockStatsResult, LegacyFunctionStats::registerSuccessTimer, LegacyFunctionStats::registerFailureTimer);
+  FunctionStatsImpl(String functionId, MeterRegistry meterRegistry, Statistics stats,
+                    FunctionServiceStats aggregateStats, long clockResult, boolean enableClockStatsResult) {
+    this(functionId, meterRegistry, stats, aggregateStats, () -> clockResult, () -> enableClockStatsResult, FunctionStatsImpl::registerSuccessTimer, FunctionStatsImpl::registerFailureTimer);
   }
 
   @VisibleForTesting
-  LegacyFunctionStats(String functionId, MeterRegistry meterRegistry, Statistics stats,
-      FunctionServiceStats aggregateStats, long clockResult, boolean enableClockStatsResult,
-      Timer successTimerResult, Timer registerFailureResult) {
+  FunctionStatsImpl(String functionId, MeterRegistry meterRegistry, Statistics stats,
+                    FunctionServiceStats aggregateStats, long clockResult, boolean enableClockStatsResult,
+                    Timer successTimerResult, Timer registerFailureResult) {
     this(functionId, meterRegistry, stats, aggregateStats, () -> clockResult, () -> enableClockStatsResult, (a, b) -> successTimerResult, (a, b) -> registerFailureResult);
   }
 
-  private LegacyFunctionStats(String functionId, MeterRegistry meterRegistry, Statistics stats,
-      FunctionServiceStats aggregateStats, LongSupplier clock, BooleanSupplier enableClockStats,
-      BiFunction<String, MeterRegistry, Timer> registerSuccessTimerFunction,
-      BiFunction<String, MeterRegistry, Timer> registerFailureTimerFunction) {
+  private FunctionStatsImpl(String functionId, MeterRegistry meterRegistry, Statistics stats,
+                            FunctionServiceStats aggregateStats, LongSupplier clock, BooleanSupplier enableClockStats,
+                            BiFunction<String, MeterRegistry, Timer> registerSuccessTimerFunction,
+                            BiFunction<String, MeterRegistry, Timer> registerFailureTimerFunction) {
 
     requireNonNull(meterRegistry);
 

@@ -32,12 +32,12 @@ import org.apache.geode.metrics.internal.NoopMeterRegistry;
 
 public class FunctionStatsManager {
 
-  private static final StatisticsType functionStatsType = LegacyFunctionStats.getStatisticsType();
+  private static final StatisticsType functionStatsType = FunctionStatsImpl.getStatisticsType();
   private static final Statistics dummyStatistics =
       new DummyStatisticsImpl(functionStatsType, null, 0);
   private static final FunctionServiceStats dummyFunctionServiceStats =
       FunctionServiceStats.createDummy();
-  private static final FunctionStats dummyFunctionStats = new LegacyFunctionStats(null,
+  private static final FunctionStats dummyFunctionStats = new FunctionStatsImpl(null,
       new NoopMeterRegistry(), dummyStatistics, dummyFunctionServiceStats);
 
   private final boolean statsDisabled;
@@ -99,9 +99,9 @@ public class FunctionStatsManager {
   }
 
   private FunctionStats create(String name) {
-    StatisticsType statisticsType = LegacyFunctionStats.getStatisticsType();
+    StatisticsType statisticsType = FunctionStatsImpl.getStatisticsType();
     Statistics statistics = statisticsFactory.createAtomicStatistics(statisticsType, name);
-    return new LegacyFunctionStats("functionId", meterRegistrySupplier.get(), statistics,
+    return new FunctionStatsImpl("functionId", meterRegistrySupplier.get(), statistics,
         functionServiceStats);
   }
 
