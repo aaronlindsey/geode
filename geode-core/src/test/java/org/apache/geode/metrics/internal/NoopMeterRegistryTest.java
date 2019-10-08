@@ -148,7 +148,8 @@ public class NoopMeterRegistryTest {
   public void newFunctionTimer_createsNoopFunctionTimer() {
     Id expectedId = new Id("name", Tags.of("key", "value"), null, null, TIMER);
 
-    FunctionTimer result = noopMeterRegistry.newFunctionTimer(expectedId, new Object(), x -> 0L, x -> 0.0, SECONDS);
+    FunctionTimer result =
+        noopMeterRegistry.newFunctionTimer(expectedId, new Object(), x -> 0L, x -> 0.0, SECONDS);
 
     assertThat(result)
         .isInstanceOf(NoopFunctionTimer.class);
@@ -161,7 +162,8 @@ public class NoopMeterRegistryTest {
   public void newFunctionCounter_createsNoopFunctionCounter() {
     Id expectedId = new Id("name", Tags.of("key", "value"), null, null, COUNTER);
 
-    FunctionCounter result = noopMeterRegistry.newFunctionCounter(expectedId, new Object(), x -> 0.0);
+    FunctionCounter result =
+        noopMeterRegistry.newFunctionCounter(expectedId, new Object(), x -> 0.0);
 
     assertThat(result)
         .isInstanceOf(NoopFunctionCounter.class);

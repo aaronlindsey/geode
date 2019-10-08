@@ -91,8 +91,6 @@ import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.InternalCacheBuilder;
 import org.apache.geode.internal.cache.execute.InternalFunctionService;
-import org.apache.geode.internal.cache.execute.metrics.FunctionServiceStats;
-import org.apache.geode.internal.cache.execute.metrics.FunctionStats;
 import org.apache.geode.internal.cache.execute.metrics.FunctionStatsManager;
 import org.apache.geode.internal.cache.tier.sockets.EncryptorImpl;
 import org.apache.geode.internal.cache.xmlcache.CacheServerCreation;
@@ -556,10 +554,8 @@ public class InternalDistributedSystem extends DistributedSystem
     statisticsManager =
         statisticsManagerFactory.create(originalConfig.getName(), startTime, statsDisabled);
 
-    functionServiceStats = new FunctionServiceStats(statisticsManager, "FunctionExecution");
-
     this.functionStatsManager = functionStatsManagerFactory.create(statsDisabled, statisticsManager,
-        functionServiceStats, new MeterRegistrySupplier(() -> this));
+        new MeterRegistrySupplier(() -> this));
   }
 
   public SecurityService getSecurityService() {
@@ -1589,10 +1585,6 @@ public class InternalDistributedSystem extends DistributedSystem
         doShutdownListeners(shutdownListeners);
       }
 
-      // closing the Aggregate stats
-      if (functionServiceStats != null) {
-        functionServiceStats.close();
-      }
       functionStatsManager.close();
 
       InternalFunctionService.unregisterAllFunctions();
@@ -1926,14 +1918,8 @@ public class InternalDistributedSystem extends DistributedSystem
     return sb.toString().trim();
   }
 
-  private final FunctionServiceStats functionServiceStats;
-
-  public FunctionStats getFunctionStats(String name) {
-    return functionStatsManager.getFunctionStatsByName(name);
-  }
-
-  public FunctionServiceStats getFunctionServiceStats() {
-    return functionServiceStats;
+  public FunctionStatsManager getFunctionStatsManager() {
+    return functionStatsManager;
   }
 
   /**

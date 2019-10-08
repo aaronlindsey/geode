@@ -247,7 +247,8 @@ public class FunctionServiceStatsDUnitTest extends PRClientServerTestBase {
     client.invoke(() -> {
       // checks for the aggregate stats
       InternalDistributedSystem iDS = (InternalDistributedSystem) cache.getDistributedSystem();
-      FunctionServiceStats functionServiceStats = iDS.getFunctionServiceStats();
+      FunctionServiceStats functionServiceStats =
+          iDS.getFunctionStatsManager().getFunctionServiceStats();
       waitNoFunctionsRunning(functionServiceStats);
 
       assertEquals(noOfExecutionCalls_Aggregate,
@@ -275,7 +276,8 @@ public class FunctionServiceStatsDUnitTest extends PRClientServerTestBase {
     SerializableRunnableIF checkStatsOnServer = () -> {
       // checks for the aggregate stats
       InternalDistributedSystem iDS = (InternalDistributedSystem) cache.getDistributedSystem();
-      FunctionServiceStats functionServiceStats = iDS.getFunctionServiceStats();
+      FunctionServiceStats functionServiceStats =
+          iDS.getFunctionStatsManager().getFunctionServiceStats();
       waitNoFunctionsRunning(functionServiceStats);
 
       // functions are executed 3 times
@@ -458,7 +460,8 @@ public class FunctionServiceStatsDUnitTest extends PRClientServerTestBase {
     client.invoke(() -> {
       // checks for the aggregate stats
       InternalDistributedSystem iDS = (InternalDistributedSystem) cache.getDistributedSystem();
-      FunctionServiceStats functionServiceStats = iDS.getFunctionServiceStats();
+      FunctionServiceStats functionServiceStats =
+          iDS.getFunctionStatsManager().getFunctionServiceStats();
       waitNoFunctionsRunning(functionServiceStats);
 
       assertEquals(noOfExecutionCalls_Aggregate,
@@ -539,7 +542,8 @@ public class FunctionServiceStatsDUnitTest extends PRClientServerTestBase {
     client.invoke(() -> {
       // checks for the aggregate stats
       InternalDistributedSystem iDS = (InternalDistributedSystem) cache.getDistributedSystem();
-      FunctionServiceStats functionServiceStats = iDS.getFunctionServiceStats();
+      FunctionServiceStats functionServiceStats =
+          iDS.getFunctionStatsManager().getFunctionServiceStats();
       waitNoFunctionsRunning(functionServiceStats);
 
       assertEquals(noOfExecutionCalls_Aggregate,
@@ -566,7 +570,8 @@ public class FunctionServiceStatsDUnitTest extends PRClientServerTestBase {
     SerializableRunnableIF checkStatsOnServer = () -> {
       // checks for the aggregate stats
       InternalDistributedSystem iDS = (InternalDistributedSystem) cache.getDistributedSystem();
-      FunctionServiceStats functionServiceStats = iDS.getFunctionServiceStats();
+      FunctionServiceStats functionServiceStats =
+          iDS.getFunctionStatsManager().getFunctionServiceStats();
       waitNoFunctionsRunning(functionServiceStats);
 
       // functions are executed 2 times
@@ -715,7 +720,8 @@ public class FunctionServiceStatsDUnitTest extends PRClientServerTestBase {
     accessor.invoke(() -> {
       InternalDistributedSystem iDS =
           ((InternalDistributedSystem) getCache().getDistributedSystem());
-      FunctionServiceStats functionServiceStats = iDS.getFunctionServiceStats();
+      FunctionServiceStats functionServiceStats =
+          iDS.getFunctionStatsManager().getFunctionServiceStats();
       waitNoFunctionsRunning(functionServiceStats);
 
       assertEquals(noOfExecutionCalls_Aggregate,
@@ -742,7 +748,8 @@ public class FunctionServiceStatsDUnitTest extends PRClientServerTestBase {
       InternalDistributedSystem iDS =
           ((InternalDistributedSystem) getCache().getDistributedSystem());
       // 3 Function Executions took place
-      FunctionServiceStats functionServiceStats = iDS.getFunctionServiceStats();
+      FunctionServiceStats functionServiceStats =
+          iDS.getFunctionStatsManager().getFunctionServiceStats();
       waitNoFunctionsRunning(functionServiceStats);
 
       noOfExecutionCalls_Aggregate += 3;
@@ -839,12 +846,12 @@ public class FunctionServiceStatsDUnitTest extends PRClientServerTestBase {
         resultReceived_Aggregate += list.size();
         assertEquals(resultReceived_Aggregate,
             ((InternalDistributedSystem) getCache().getDistributedSystem())
-                .getFunctionServiceStats().getResultsReceived());
+                .getFunctionStatsManager().getFunctionServiceStats().getResultsReceived());
 
         resultReceived_TESTFUNCTION2 += list.size();
         assertEquals(resultReceived_TESTFUNCTION2,
             ((InternalDistributedSystem) getCache().getDistributedSystem())
-                .getFunctionServiceStats().getResultsReceived());
+                .getFunctionStatsManager().getFunctionServiceStats().getResultsReceived());
 
       } catch (Exception e) {
         e.printStackTrace();
@@ -946,7 +953,8 @@ public class FunctionServiceStatsDUnitTest extends PRClientServerTestBase {
     });
 
     member1.invoke(() -> {
-      FunctionServiceStats functionServiceStats = ds.getFunctionServiceStats();
+      FunctionServiceStats functionServiceStats =
+          ds.getFunctionStatsManager().getFunctionServiceStats();
       waitNoFunctionsRunning(functionServiceStats);
 
       assertEquals(noOfExecutionCalls_Aggregate,
@@ -964,7 +972,8 @@ public class FunctionServiceStatsDUnitTest extends PRClientServerTestBase {
     });
 
     SerializableRunnableIF checkFunctionExecutionStatsForOtherMember = () -> {
-      FunctionServiceStats functionServiceStats = ds.getFunctionServiceStats();
+      FunctionServiceStats functionServiceStats =
+          ds.getFunctionStatsManager().getFunctionServiceStats();
       waitNoFunctionsRunning(functionServiceStats);
 
       // One function Execution took place on there members

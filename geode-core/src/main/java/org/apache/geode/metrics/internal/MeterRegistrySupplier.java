@@ -25,7 +25,8 @@ public class MeterRegistrySupplier implements Supplier<MeterRegistry> {
 
   private final Supplier<InternalDistributedSystem> internalDistributedSystemSupplier;
 
-  public MeterRegistrySupplier(Supplier<InternalDistributedSystem> internalDistributedSystemSupplier) {
+  public MeterRegistrySupplier(
+      Supplier<InternalDistributedSystem> internalDistributedSystemSupplier) {
     this.internalDistributedSystemSupplier = internalDistributedSystemSupplier;
   }
 
@@ -44,4 +45,3 @@ public class MeterRegistrySupplier implements Supplier<MeterRegistry> {
     return internalCache.getMeterRegistry();
   }
 }
-

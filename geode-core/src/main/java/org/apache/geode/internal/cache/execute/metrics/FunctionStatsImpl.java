@@ -213,27 +213,33 @@ public class FunctionStatsImpl implements FunctionStats {
   private boolean isClosed = false;
 
   FunctionStatsImpl(String functionId, MeterRegistry meterRegistry, Statistics statistics,
-                    FunctionServiceStats functionServiceStats) {
-    this(functionId, meterRegistry, statistics, functionServiceStats, NanoTimer::getTime, () -> DistributionStats.enableClockStats, FunctionStatsImpl::registerSuccessTimer, FunctionStatsImpl::registerFailureTimer);
+      FunctionServiceStats functionServiceStats) {
+    this(functionId, meterRegistry, statistics, functionServiceStats, NanoTimer::getTime,
+        () -> DistributionStats.enableClockStats, FunctionStatsImpl::registerSuccessTimer,
+        FunctionStatsImpl::registerFailureTimer);
   }
 
   @VisibleForTesting
   FunctionStatsImpl(String functionId, MeterRegistry meterRegistry, Statistics stats,
-                    FunctionServiceStats aggregateStats, long clockResult, boolean enableClockStatsResult) {
-    this(functionId, meterRegistry, stats, aggregateStats, () -> clockResult, () -> enableClockStatsResult, FunctionStatsImpl::registerSuccessTimer, FunctionStatsImpl::registerFailureTimer);
+      FunctionServiceStats aggregateStats, long clockResult, boolean enableClockStatsResult) {
+    this(functionId, meterRegistry, stats, aggregateStats, () -> clockResult,
+        () -> enableClockStatsResult, FunctionStatsImpl::registerSuccessTimer,
+        FunctionStatsImpl::registerFailureTimer);
   }
 
   @VisibleForTesting
   FunctionStatsImpl(String functionId, MeterRegistry meterRegistry, Statistics stats,
-                    FunctionServiceStats aggregateStats, long clockResult, boolean enableClockStatsResult,
-                    Timer successTimerResult, Timer registerFailureResult) {
-    this(functionId, meterRegistry, stats, aggregateStats, () -> clockResult, () -> enableClockStatsResult, (a, b) -> successTimerResult, (a, b) -> registerFailureResult);
+      FunctionServiceStats aggregateStats, long clockResult, boolean enableClockStatsResult,
+      Timer successTimerResult, Timer registerFailureResult) {
+    this(functionId, meterRegistry, stats, aggregateStats, () -> clockResult,
+        () -> enableClockStatsResult, (a, b) -> successTimerResult,
+        (a, b) -> registerFailureResult);
   }
 
   private FunctionStatsImpl(String functionId, MeterRegistry meterRegistry, Statistics stats,
-                            FunctionServiceStats aggregateStats, LongSupplier clock, BooleanSupplier enableClockStats,
-                            BiFunction<String, MeterRegistry, Timer> registerSuccessTimerFunction,
-                            BiFunction<String, MeterRegistry, Timer> registerFailureTimerFunction) {
+      FunctionServiceStats aggregateStats, LongSupplier clock, BooleanSupplier enableClockStats,
+      BiFunction<String, MeterRegistry, Timer> registerSuccessTimerFunction,
+      BiFunction<String, MeterRegistry, Timer> registerFailureTimerFunction) {
 
     requireNonNull(meterRegistry);
 

@@ -18,15 +18,14 @@ import static java.util.stream.Collectors.toList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.quality.Strictness.LENIENT;
 
 import java.util.List;
 import java.util.stream.Stream;
 
-import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.Before;
 import org.junit.Rule;
@@ -37,7 +36,6 @@ import org.mockito.junit.MockitoRule;
 
 import org.apache.geode.Statistics;
 import org.apache.geode.StatisticsFactory;
-import org.apache.geode.cache.execute.Function;
 
 public class FunctionStatsManagerTest {
 
@@ -46,9 +44,6 @@ public class FunctionStatsManagerTest {
 
   @Mock
   private StatisticsFactory statisticsFactory;
-
-  @Mock
-  private FunctionServiceStats functionServiceStats;
 
   @Mock
   private Statistics statistics;
@@ -64,9 +59,20 @@ public class FunctionStatsManagerTest {
   }
 
   @Test
+  public void constructor_createsFunctionServiceStats() {
+    FunctionStatsManager functionStatsManager = new FunctionStatsManager(false, statisticsFactory,
+        () -> meterRegistry);
+
+    FunctionServiceStats functionServiceStats = functionStatsManager.getFunctionServiceStats();
+
+    assertThat(functionServiceStats)
+        .isNotNull();
+  }
+
+  @Test
   public void getFunctionStatsByName_returnsSingletonDummyFunctionStats_ifStatsDisabled_andMeterRegistryIsNull() {
     FunctionStatsManager functionStatsManager = new FunctionStatsManager(true, statisticsFactory,
-        functionServiceStats, () -> null);
+        () -> null);
 
     FunctionStats functionStats = functionStatsManager.getFunctionStatsByName("foo");
 
@@ -78,7 +84,7 @@ public class FunctionStatsManagerTest {
   @Test
   public void getFunctionStatsByName_usesSingletonDummyStatistics_ifStatsDisabled() {
     FunctionStatsManager functionStatsManager = new FunctionStatsManager(true, statisticsFactory,
-        functionServiceStats, () -> meterRegistry);
+        () -> meterRegistry);
 
     FunctionStats functionStats = functionStatsManager.getFunctionStatsByName("foo");
 
@@ -90,7 +96,7 @@ public class FunctionStatsManagerTest {
   @Test
   public void getFunctionStatsByName_usesStatisticsFromFactory_ifStatsEnabled_andMeterRegistrySupplied() {
     FunctionStatsManager functionStatsManager = new FunctionStatsManager(false, statisticsFactory,
-        functionServiceStats, () -> meterRegistry);
+        () -> meterRegistry);
     Statistics statisticsFromFactory = mock(Statistics.class);
     when(statisticsFactory.createAtomicStatistics(any(), any()))
         .thenReturn(statisticsFromFactory);
@@ -104,7 +110,7 @@ public class FunctionStatsManagerTest {
   @Test
   public void getFunctionStatsByName_usesStatisticsFromFactory_ifStatsEnabled_andMeterRegistryIsNull() {
     FunctionStatsManager functionStatsManager = new FunctionStatsManager(false, statisticsFactory,
-        functionServiceStats, () -> null);
+        () -> null);
     Statistics statisticsFromFactory = mock(Statistics.class);
     when(statisticsFactory.createAtomicStatistics(any(), any()))
         .thenReturn(statisticsFromFactory);
@@ -114,10 +120,11 @@ public class FunctionStatsManagerTest {
     assertThat(functionStats.getStatistics())
         .isSameAs(statisticsFromFactory);
   }
+
   @Test
   public void getFunctionStatsByName_usesNoopMeterRegistry_ifMeterRegistryIsNull() {
     FunctionStatsManager functionStatsManager = new FunctionStatsManager(false, statisticsFactory,
-        functionServiceStats, () -> null);
+        () -> null);
 
     FunctionStats functionStats = functionStatsManager.getFunctionStatsByName("foo");
 
@@ -129,7 +136,7 @@ public class FunctionStatsManagerTest {
   public void getFunctionStatsByName_usesMeterRegistryFromSupplier_ifStatsDisabled_andMeterRegistrySupplied() {
     MeterRegistry meterRegistryFromSupplier = new SimpleMeterRegistry();
     FunctionStatsManager functionStatsManager = new FunctionStatsManager(true, statisticsFactory,
-        functionServiceStats, () -> meterRegistryFromSupplier);
+        () -> meterRegistryFromSupplier);
 
     FunctionStats functionStats = functionStatsManager.getFunctionStatsByName("foo");
 
@@ -141,7 +148,7 @@ public class FunctionStatsManagerTest {
   public void getFunctionStatsByName_usesMeterRegistryFromSupplier_ifStatsEnabled_andMeterRegistrySupplied() {
     MeterRegistry meterRegistryFromSupplier = new SimpleMeterRegistry();
     FunctionStatsManager functionStatsManager = new FunctionStatsManager(false, statisticsFactory,
-        functionServiceStats, () -> meterRegistryFromSupplier);
+        () -> meterRegistryFromSupplier);
 
     FunctionStats functionStats = functionStatsManager.getFunctionStatsByName("foo");
 
@@ -152,7 +159,7 @@ public class FunctionStatsManagerTest {
   @Test
   public void getFunctionStatsByName_returnsSameInstanceForGivenName() {
     FunctionStatsManager functionStatsManager = new FunctionStatsManager(false, statisticsFactory,
-        functionServiceStats, () -> meterRegistry);
+        () -> meterRegistry);
 
     FunctionStats first = functionStatsManager.getFunctionStatsByName("foo");
     FunctionStats second = functionStatsManager.getFunctionStatsByName("foo");
@@ -161,45 +168,10 @@ public class FunctionStatsManagerTest {
         .isSameAs(first);
   }
 
-  private static Timer functionExecutionsSuccessTimer(MeterRegistry meterRegistry,
-      String functionId) {
-    return getTimer(meterRegistry, functionId, true);
-  }
-
-  private static Timer functionExecutionsFailureTimer(MeterRegistry meterRegistry,
-      String functionId) {
-    return getTimer(meterRegistry, functionId, false);
-  }
-
-  private static Timer getTimer(MeterRegistry meterRegistry, String functionId, boolean succeeded) {
-    return meterRegistry
-        .find("geode.function.executions")
-        .tag("function", functionId)
-        .tag("succeeded", String.valueOf(succeeded))
-        .timer();
-  }
-
-  private static Function functionWithId(String id) {
-    Function function = mock(Function.class);
-    when(function.getId()).thenReturn(id);
-    return function;
-  }
-
-  // @Test
-  // @Parameters({"false, false, false", // stats and meters
-  // "false, false, true", // stats and no meters
-  // "false, true, false", // stats and no meters
-  // "false, true, true", // stats and no meters
-  // "true, false, false", // no stats or meters
-  // "true, false, true", // no stats and no meters
-  // "true, true, false", // no stats and no meters
-  // "true, true, true"}) // no stats and no meters
-  // public void getFunctionStats_(boolean statsDisabled, boolean isInternalFunction) {
-
   @Test
   public void close_closesAllCreatedFunctionStats() {
     FunctionStatsManager functionStatsManager = new FunctionStatsManager(false, statisticsFactory,
-        functionServiceStats, () -> meterRegistry);
+        () -> meterRegistry);
 
     List<FunctionStats> functionStats = Stream.of("a", "b", "c")
         .map(functionStatsManager::getFunctionStatsByName)
@@ -209,5 +181,17 @@ public class FunctionStatsManagerTest {
 
     assertThat(functionStats)
         .allMatch(FunctionStats::isClosed, "Function stats is closed");
+  }
+
+  @Test
+  public void close_closesFunctionServiceStats() {
+    FunctionServiceStats functionServiceStats = mock(FunctionServiceStats.class);
+    FunctionStatsManager functionStatsManager = new FunctionStatsManager(false, statisticsFactory,
+        functionServiceStats, () -> meterRegistry);
+
+    functionStatsManager.close();
+
+    verify(functionServiceStats)
+        .close();
   }
 }

@@ -16,9 +16,7 @@ package org.apache.geode.internal.cache.execute.metrics;
 
 import static org.apache.geode.internal.util.JavaWorkarounds.computeIfAbsent;
 
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
@@ -28,11 +26,8 @@ import org.apache.geode.Statistics;
 import org.apache.geode.StatisticsFactory;
 import org.apache.geode.StatisticsType;
 import org.apache.geode.annotations.VisibleForTesting;
-import org.apache.geode.cache.execute.Function;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
-import org.apache.geode.internal.InternalEntity;
 import org.apache.geode.internal.statistics.DummyStatisticsImpl;
-import org.apache.geode.internal.util.JavaWorkarounds;
 import org.apache.geode.metrics.internal.NoopMeterRegistry;
 
 public class FunctionStatsManager {
@@ -53,12 +48,23 @@ public class FunctionStatsManager {
   private final Map<String, FunctionStats> functionExecutionStatsMap;
 
   public FunctionStatsManager(boolean statsDisabled, StatisticsFactory statisticsFactory,
+      Supplier<MeterRegistry> meterRegistrySupplier) {
+    this(statsDisabled, statisticsFactory,
+        new FunctionServiceStats(statisticsFactory, "FunctionExecution"), meterRegistrySupplier);
+  }
+
+  @VisibleForTesting
+  FunctionStatsManager(boolean statsDisabled, StatisticsFactory statisticsFactory,
       FunctionServiceStats functionServiceStats, Supplier<MeterRegistry> meterRegistrySupplier) {
     this.statsDisabled = statsDisabled;
     this.statisticsFactory = statisticsFactory;
     this.functionServiceStats = functionServiceStats;
     this.meterRegistrySupplier = meterRegistrySupplier;
     this.functionExecutionStatsMap = new ConcurrentHashMap<>();
+  }
+
+  public FunctionServiceStats getFunctionServiceStats() {
+    return functionServiceStats;
   }
 
   public FunctionStats getFunctionStatsByName(String name) {
@@ -68,13 +74,15 @@ public class FunctionStatsManager {
       return dummyFunctionStats;
     }
 
-    return computeIfAbsent(functionExecutionStatsMap, name, key -> create(key, meterRegistryFromSupplier));
+    return computeIfAbsent(functionExecutionStatsMap, name,
+        key -> create(key, meterRegistryFromSupplier));
   }
 
   public void close() {
     for (FunctionStats functionstats : functionExecutionStatsMap.values()) {
       functionstats.close();
     }
+    functionServiceStats.close();
   }
 
   private FunctionStats create(String name, MeterRegistry meterRegistryFromSupplier) {
@@ -97,7 +105,7 @@ public class FunctionStatsManager {
    * @return object of the FunctionStats
    */
   public static FunctionStats getFunctionStats(String functionID, InternalDistributedSystem ds) {
-    return ds.getFunctionStats(functionID);
+    return ds.getFunctionStatsManager().getFunctionStatsByName(functionID);
   }
 
   public static FunctionStats getFunctionStats(String functionID) {
@@ -105,7 +113,7 @@ public class FunctionStatsManager {
     if (ds == null) {
       return dummyFunctionStats;
     }
-    return ds.getFunctionStats(functionID);
+    return ds.getFunctionStatsManager().getFunctionStatsByName(functionID);
   }
 
   @VisibleForTesting
@@ -125,7 +133,6 @@ public class FunctionStatsManager {
 
   public interface Factory {
     FunctionStatsManager create(boolean statsDisabled, StatisticsFactory statisticsFactory,
-        FunctionServiceStats functionServiceStats,
         Supplier<MeterRegistry> meterRegistrySupplier);
   }
 }

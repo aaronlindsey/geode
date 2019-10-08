@@ -283,7 +283,7 @@ public class MemberMBeanBridge {
   MemberMBeanBridge init() {
     CachePerfStats cachePerfStats = cache.getCachePerfStats();
     addCacheStats(cachePerfStats);
-    addFunctionStats(system.getFunctionServiceStats());
+    addFunctionStats(system.getFunctionStatsManager().getFunctionServiceStats());
 
     if (system.getDistributionManager().getStats() instanceof DistributionStats) {
       DistributionStats distributionStats =

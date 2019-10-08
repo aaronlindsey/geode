@@ -44,7 +44,7 @@ import org.mockito.quality.Strictness;
 import org.apache.geode.Statistics;
 
 public class FunctionStatsImplTest {
-  private  static final String FUNCTION_ID = "functionId";
+  private static final String FUNCTION_ID = "functionId";
 
   @Rule
   public MockitoRule mockitoRule = MockitoJUnit.rule().strictness(Strictness.STRICT_STUBS);
@@ -88,7 +88,8 @@ public class FunctionStatsImplTest {
 
   @Test
   public void constructor_throws_ifMeterRegistryIsNull() {
-    Throwable thrown = catchThrowable(() -> new FunctionStatsImpl(FUNCTION_ID, null, statistics, functionServiceStats));
+    Throwable thrown = catchThrowable(
+        () -> new FunctionStatsImpl(FUNCTION_ID, null, statistics, functionServiceStats));
 
     assertThat(thrown)
         .isInstanceOf(NullPointerException.class);
