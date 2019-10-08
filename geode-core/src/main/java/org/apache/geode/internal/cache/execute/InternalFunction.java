@@ -37,4 +37,9 @@ public interface InternalFunction<T> extends Function<T>, InternalEntity {
   default Collection<ResourcePermission> getRequiredPermissions(String regionName) {
     return Collections.singletonList(ResourcePermissions.ALL);
   }
+
+  @Override
+  default String getId() {
+    return getClass().getCanonicalName();
+  }
 }

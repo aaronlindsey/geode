@@ -115,7 +115,7 @@ public class QueryDataFunction implements Function, InternalEntity {
       final boolean showMember, final String regionName, final int limit,
       final int queryResultSetLimit, final int queryCollectionsDepth) throws Exception {
     InternalCache cache = (InternalCache) context.getCache();
-    Function localQueryFunc = new LocalQueryFunction("LocalQueryFunction", regionName, showMember)
+    Function localQueryFunc = new LocalQueryFunction(regionName, showMember)
         .setOptimizeForWrite(true);
     queryString = applyLimitClause(queryString, limit, queryResultSetLimit);
 
@@ -236,15 +236,13 @@ public class QueryDataFunction implements Function, InternalEntity {
   private class LocalQueryFunction implements InternalFunction {
 
     private static final long serialVersionUID = 1L;
-
-    private final String id;
+    private static final String ID = "LocalQueryFunction";
 
     private boolean optimizeForWrite = false;
-    private boolean showMembers;
-    private String regionName;
+    private final boolean showMembers;
+    private final String regionName;
 
-    public LocalQueryFunction(final String id, final String regionName, final boolean showMembers) {
-      this.id = id;
+    public LocalQueryFunction(final String regionName, final boolean showMembers) {
       this.regionName = regionName;
       this.showMembers = showMembers;
     }
@@ -293,7 +291,7 @@ public class QueryDataFunction implements Function, InternalEntity {
 
     @Override
     public String getId() {
-      return this.id;
+      return ID;
     }
   }
 }

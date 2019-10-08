@@ -23,6 +23,7 @@ import javax.management.ObjectName;
 
 import org.apache.logging.log4j.Logger;
 
+import org.apache.geode.annotations.VisibleForTesting;
 import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.execute.InternalFunction;
@@ -60,6 +61,11 @@ public class ManagementFunction implements InternalFunction {
    */
   public ManagementFunction(NotificationHub notifHub) {
     this.notificationHub = notifHub;
+  }
+
+  @VisibleForTesting
+  ManagementFunction() {
+
   }
 
   /**

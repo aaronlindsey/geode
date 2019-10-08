@@ -19,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
 import static org.mockito.quality.Strictness.LENIENT;
 
 import java.util.List;
@@ -37,6 +38,7 @@ import org.mockito.junit.MockitoRule;
 import org.apache.geode.Statistics;
 import org.apache.geode.StatisticsFactory;
 import org.apache.geode.cache.execute.Function;
+import org.apache.geode.internal.InternalEntity;
 
 public class FunctionStatsManagerTest {
 
@@ -143,6 +145,23 @@ public class FunctionStatsManagerTest {
         .isNotNull();
   }
 
+  @Test
+  public void getFunctionStatsFor_doesNotRegisterFunctionExecutionsTimers_ifInternalFunction() {
+    MeterRegistry theMeterRegistry = new SimpleMeterRegistry();
+    FunctionStatsManager functionStatsManager = new FunctionStatsManager(false, statisticsFactory,
+        functionServiceStats, () -> theMeterRegistry);
+
+    String functionId = "id";
+    functionStatsManager.getFunctionStatsFor(internalFunctionWithId(functionId));
+
+    assertThat(functionExecutionsSuccessTimer(theMeterRegistry, functionId))
+        .as("Function executions success timer")
+        .isNull();
+    assertThat(functionExecutionsFailureTimer(theMeterRegistry, functionId))
+        .as("Function executions failure timer")
+        .isNull();
+  }
+
   private static Timer functionExecutionsSuccessTimer(MeterRegistry meterRegistry,
       String functionId) {
     return getTimer(meterRegistry, functionId, true);
@@ -163,6 +182,12 @@ public class FunctionStatsManagerTest {
 
   private static Function functionWithId(String id) {
     Function function = mock(Function.class);
+    when(function.getId()).thenReturn(id);
+    return function;
+  }
+
+  private static Function internalFunctionWithId(String id) {
+    Function function = mock(Function.class, withSettings().extraInterfaces(InternalEntity.class));
     when(function.getId()).thenReturn(id);
     return function;
   }
