@@ -26,11 +26,8 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.Collection;
 import java.util.List;
 
-import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Timer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -45,7 +42,6 @@ import org.apache.geode.cache.execute.Execution;
 import org.apache.geode.cache.execute.Function;
 import org.apache.geode.cache.execute.FunctionService;
 import org.apache.geode.internal.AvailablePortHelper;
-import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.management.internal.cli.functions.ListFunctionFunction;
 import org.apache.geode.metrics.MetricsPublishingService;
 import org.apache.geode.metrics.SimpleMetricsPublishingService;
@@ -110,38 +106,13 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
   }
 
   @Test
-  public void timersNotRegisteredIfOnlyInternalFunctionsExecuted() {
-    startServerWithStatsEnabled();
-
-    executeInternalFunction();
-
-    assertThat(getAllExecutionsTimerValues())
-        .as("Function executions timers on server")
-        .isEmpty();
-  }
-
-  @Test
   public void timersNotRegisteredIfFunctionDeployedButNotExecuted() {
     startServerWithStatsEnabled();
 
     deployFunction(FunctionToTime.class);
 
-    assertThat(getAllExecutionsTimerValues())
+    assertThat(getExecutionsTimerValuesFor(FunctionToTime.ID))
         .as("Function executions timers on server")
-        .isEmpty();
-  }
-
-  @Test
-  public void timersNotRegisteredOnClient() {
-    startServerWithStatsEnabled();
-
-    executeFunctionThatSucceeds(new FunctionToTime(), Duration.ofMillis(1));
-
-    // Currently there is no way to get a client's registry via public API
-    MeterRegistry registry = ((InternalCache) clientCache).getMeterRegistry();
-    Collection<Timer> timers = registry.find("geode.function.executions").timers();
-    assertThat(timers)
-        .as("Function executions timers on client")
         .isEmpty();
   }
 
@@ -153,7 +124,7 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
     Duration functionDuration = Duration.ofSeconds(1);
     executeFunctionById(FunctionToTime.ID, functionDuration);
 
-    assertThat(getAllExecutionsTimerValues())
+    assertThat(getExecutionsTimerValuesFor(FunctionToTime.ID))
         .as("Function executions timers on server")
         .hasSize(2);
   }
@@ -164,7 +135,7 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
 
     executeFunctionThatSucceeds(new FunctionToTime(), Duration.ofMillis(1));
 
-    assertThat(getAllExecutionsTimerValues())
+    assertThat(getExecutionsTimerValuesFor(FunctionToTime.ID))
         .as("Function executions timers on server")
         .hasSize(2);
   }
@@ -176,7 +147,7 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
 
     restartServer();
 
-    assertThat(getAllExecutionsTimerValues())
+    assertThat(getExecutionsTimerValuesFor(FunctionToTime.ID))
         .as("Function executions timers on server")
         .isEmpty();
   }
@@ -370,8 +341,8 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
 
   private ExecutionsTimerValues getExecutionsTimerValues(String functionId,
       boolean succeededTagValue) {
-    List<ExecutionsTimerValues> executionsTimerValues = getAllExecutionsTimerValues().stream()
-        .filter(v -> v.functionId.equals(functionId))
+    List<ExecutionsTimerValues> executionsTimerValues = getExecutionsTimerValuesFor(functionId)
+        .stream()
         .filter(v -> v.succeeded == succeededTagValue)
         .collect(toList());
 
@@ -381,7 +352,7 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
     return executionsTimerValues.get(0);
   }
 
-  private List<ExecutionsTimerValues> getAllExecutionsTimerValues() {
+  private List<ExecutionsTimerValues> getExecutionsTimerValuesFor(String functionId) {
     @SuppressWarnings("unchecked")
     Execution<Void, List<ExecutionsTimerValues>, List<List<ExecutionsTimerValues>>> functionExecution =
         (Execution<Void, List<ExecutionsTimerValues>, List<List<ExecutionsTimerValues>>>) FunctionService
@@ -394,6 +365,8 @@ public class FunctionExecutionsTimerSingleServerExecutionTest {
     assertThat(results)
         .hasSize(1);
 
-    return results.get(0);
+    return results.get(0).stream()
+        .filter(v -> v.functionId.equals(functionId))
+        .collect(toList());
   }
 }
