@@ -18,7 +18,6 @@ import java.util.function.Supplier;
 
 import io.micrometer.core.instrument.MeterRegistry;
 
-import org.apache.geode.annotations.VisibleForTesting;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.internal.cache.InternalCache;
 
@@ -26,12 +25,7 @@ public class MeterRegistrySupplier implements Supplier<MeterRegistry> {
 
   private final Supplier<InternalDistributedSystem> internalDistributedSystemSupplier;
 
-  public MeterRegistrySupplier() {
-    this(InternalDistributedSystem::getConnectedInstance);
-  }
-
-  @VisibleForTesting
-  MeterRegistrySupplier(Supplier<InternalDistributedSystem> internalDistributedSystemSupplier) {
+  public MeterRegistrySupplier(Supplier<InternalDistributedSystem> internalDistributedSystemSupplier) {
     this.internalDistributedSystemSupplier = internalDistributedSystemSupplier;
   }
 
@@ -39,18 +33,15 @@ public class MeterRegistrySupplier implements Supplier<MeterRegistry> {
   public MeterRegistry get() {
     InternalDistributedSystem system = internalDistributedSystemSupplier.get();
     if (system == null) {
-      return new NoopMeterRegistry();
+      return null;
     }
 
     InternalCache internalCache = system.getCache();
     if (internalCache == null) {
-      return new NoopMeterRegistry();
+      return null;
     }
 
-    MeterRegistry meterRegistry = internalCache.getMeterRegistry();
-    return meterRegistry == null
-        ? new NoopMeterRegistry()
-        : meterRegistry;
+    return internalCache.getMeterRegistry();
   }
 }
 

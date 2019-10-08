@@ -24,6 +24,7 @@ import static org.mockito.quality.Strictness.LENIENT;
 import java.util.List;
 import java.util.stream.Stream;
 
+import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -63,6 +64,18 @@ public class FunctionStatsManagerTest {
   }
 
   @Test
+  public void getFunctionStatsByName_returnsSingletonDummyFunctionStats_ifStatsDisabled_andMeterRegistryIsNull() {
+    FunctionStatsManager functionStatsManager = new FunctionStatsManager(true, statisticsFactory,
+        functionServiceStats, () -> null);
+
+    FunctionStats functionStats = functionStatsManager.getFunctionStatsByName("foo");
+
+    FunctionStats singletonDummyFunctionStats = FunctionStatsManager.getDummyFunctionStats();
+    assertThat(functionStats)
+        .isSameAs(singletonDummyFunctionStats);
+  }
+
+  @Test
   public void getFunctionStatsByName_usesSingletonDummyStatistics_ifStatsDisabled() {
     FunctionStatsManager functionStatsManager = new FunctionStatsManager(true, statisticsFactory,
         functionServiceStats, () -> meterRegistry);
@@ -75,17 +88,65 @@ public class FunctionStatsManagerTest {
   }
 
   @Test
-  public void getFunctionStatsByName_usesRealStatistics_ifStatsEnabled() {
+  public void getFunctionStatsByName_usesStatisticsFromFactory_ifStatsEnabled_andMeterRegistrySupplied() {
     FunctionStatsManager functionStatsManager = new FunctionStatsManager(false, statisticsFactory,
         functionServiceStats, () -> meterRegistry);
-    Statistics statisticsReturnedFromFactory = mock(Statistics.class);
+    Statistics statisticsFromFactory = mock(Statistics.class);
     when(statisticsFactory.createAtomicStatistics(any(), any()))
-        .thenReturn(statisticsReturnedFromFactory);
+        .thenReturn(statisticsFromFactory);
 
     FunctionStats functionStats = functionStatsManager.getFunctionStatsByName("foo");
 
     assertThat(functionStats.getStatistics())
-        .isSameAs(statisticsReturnedFromFactory);
+        .isSameAs(statisticsFromFactory);
+  }
+
+  @Test
+  public void getFunctionStatsByName_usesStatisticsFromFactory_ifStatsEnabled_andMeterRegistryIsNull() {
+    FunctionStatsManager functionStatsManager = new FunctionStatsManager(false, statisticsFactory,
+        functionServiceStats, () -> null);
+    Statistics statisticsFromFactory = mock(Statistics.class);
+    when(statisticsFactory.createAtomicStatistics(any(), any()))
+        .thenReturn(statisticsFromFactory);
+
+    FunctionStats functionStats = functionStatsManager.getFunctionStatsByName("foo");
+
+    assertThat(functionStats.getStatistics())
+        .isSameAs(statisticsFromFactory);
+  }
+  @Test
+  public void getFunctionStatsByName_usesNoopMeterRegistry_ifMeterRegistryIsNull() {
+    FunctionStatsManager functionStatsManager = new FunctionStatsManager(false, statisticsFactory,
+        functionServiceStats, () -> null);
+
+    FunctionStats functionStats = functionStatsManager.getFunctionStatsByName("foo");
+
+    assertThat(functionStats.getMeterRegistry())
+        .isSameAs(FunctionStatsManager.getNoopMeterRegistry());
+  }
+
+  @Test
+  public void getFunctionStatsByName_usesMeterRegistryFromSupplier_ifStatsDisabled_andMeterRegistrySupplied() {
+    MeterRegistry meterRegistryFromSupplier = new SimpleMeterRegistry();
+    FunctionStatsManager functionStatsManager = new FunctionStatsManager(true, statisticsFactory,
+        functionServiceStats, () -> meterRegistryFromSupplier);
+
+    FunctionStats functionStats = functionStatsManager.getFunctionStatsByName("foo");
+
+    assertThat(functionStats.getMeterRegistry())
+        .isSameAs(meterRegistryFromSupplier);
+  }
+
+  @Test
+  public void getFunctionStatsByName_usesMeterRegistryFromSupplier_ifStatsEnabled_andMeterRegistrySupplied() {
+    MeterRegistry meterRegistryFromSupplier = new SimpleMeterRegistry();
+    FunctionStatsManager functionStatsManager = new FunctionStatsManager(false, statisticsFactory,
+        functionServiceStats, () -> meterRegistryFromSupplier);
+
+    FunctionStats functionStats = functionStatsManager.getFunctionStatsByName("foo");
+
+    assertThat(functionStats.getMeterRegistry())
+        .isSameAs(meterRegistryFromSupplier);
   }
 
   @Test
@@ -98,49 +159,6 @@ public class FunctionStatsManagerTest {
 
     assertThat(second)
         .isSameAs(first);
-  }
-
-  @Test
-  public void getFunctionStatsFor_usesSingletonDummyStatistics_ifStatsDisabled() {
-    FunctionStatsManager functionStatsManager = new FunctionStatsManager(true, statisticsFactory,
-        functionServiceStats, () -> meterRegistry);
-
-    FunctionStats functionStats = functionStatsManager.getFunctionStatsFor(functionWithId("id"));
-
-    Statistics singletonDummyStatistics = FunctionStatsManager.getDummyStatistics();
-    assertThat(functionStats.getStatistics())
-        .isSameAs(singletonDummyStatistics);
-  }
-
-  @Test
-  public void getFunctionStatsFor_usesRealStatistics_ifStatsEnabled() {
-    FunctionStatsManager functionStatsManager = new FunctionStatsManager(false, statisticsFactory,
-        functionServiceStats, () -> meterRegistry);
-    Statistics statisticsReturnedFromFactory = mock(Statistics.class);
-    when(statisticsFactory.createAtomicStatistics(any(), any()))
-        .thenReturn(statisticsReturnedFromFactory);
-
-    FunctionStats functionStats = functionStatsManager.getFunctionStatsFor(functionWithId("id"));
-
-    assertThat(functionStats.getStatistics())
-        .isSameAs(statisticsReturnedFromFactory);
-  }
-
-  @Test
-  public void getFunctionStatsFor_registersFunctionExecutionsTimers_ifNonInternalFunction() {
-    MeterRegistry theMeterRegistry = new SimpleMeterRegistry();
-    FunctionStatsManager functionStatsManager = new FunctionStatsManager(false, statisticsFactory,
-        functionServiceStats, () -> theMeterRegistry);
-
-    String functionId = "id";
-    functionStatsManager.getFunctionStatsFor(functionWithId(functionId));
-
-    assertThat(functionExecutionsSuccessTimer(theMeterRegistry, functionId))
-        .as("Function executions success timer")
-        .isNotNull();
-    assertThat(functionExecutionsFailureTimer(theMeterRegistry, functionId))
-        .as("Function executions failure timer")
-        .isNotNull();
   }
 
   private static Timer functionExecutionsSuccessTimer(MeterRegistry meterRegistry,

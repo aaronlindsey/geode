@@ -14,7 +14,11 @@
  */
 package org.apache.geode.internal.cache.execute.metrics;
 
+import static org.apache.geode.internal.util.JavaWorkarounds.computeIfAbsent;
+
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
@@ -26,6 +30,7 @@ import org.apache.geode.StatisticsType;
 import org.apache.geode.annotations.VisibleForTesting;
 import org.apache.geode.cache.execute.Function;
 import org.apache.geode.distributed.internal.InternalDistributedSystem;
+import org.apache.geode.internal.InternalEntity;
 import org.apache.geode.internal.statistics.DummyStatisticsImpl;
 import org.apache.geode.internal.util.JavaWorkarounds;
 import org.apache.geode.metrics.internal.NoopMeterRegistry;
@@ -37,37 +42,15 @@ public class FunctionStatsManager {
       new DummyStatisticsImpl(functionStatsType, null, 0);
   private static final FunctionServiceStats dummyFunctionServiceStats =
       FunctionServiceStats.createDummy();
+  private static final MeterRegistry noopMeterRegistry = new NoopMeterRegistry();
   private static final FunctionStats dummyFunctionStats = new FunctionStatsImpl("",
-      new NoopMeterRegistry(), dummyStatistics, dummyFunctionServiceStats);
+      noopMeterRegistry, dummyStatistics, dummyFunctionServiceStats);
 
   private final boolean statsDisabled;
   private final StatisticsFactory statisticsFactory;
   private final FunctionServiceStats functionServiceStats;
   private final Supplier<MeterRegistry> meterRegistrySupplier;
   private final Map<String, FunctionStats> functionExecutionStatsMap;
-
-
-  // /**
-  // * This is an instance of the FunctionStats when the statsDisabled = true;
-  // */
-  // @Immutable
-  // public static final FunctionStats dummy = createDummy();
-  //
-  // public static FunctionStats createDummy() {
-  // return new LegacyFunctionStats();
-  // }
-  //
-  // /**
-  // * Constructor.
-  // *
-  // * @param factory The <code>StatisticsFactory</code> which creates the <code>Statistics</code>
-  // * instance
-  // * @param name The name of the <code>Statistics</code>
-  // */
-  // public static FunctionStats create(StatisticsFactory factory, String name,
-  // MeterRegistry meterRegistry) {
-  // return new LegacyFunctionStats(factory, name);
-  // }
 
   public FunctionStatsManager(boolean statsDisabled, StatisticsFactory statisticsFactory,
       FunctionServiceStats functionServiceStats, Supplier<MeterRegistry> meterRegistrySupplier) {
@@ -78,31 +61,14 @@ public class FunctionStatsManager {
     this.functionExecutionStatsMap = new ConcurrentHashMap<>();
   }
 
-  @VisibleForTesting
-  static FunctionStats getDummyFunctionStats() {
-    return dummyFunctionStats;
-  }
-
-  public static Statistics getDummyStatistics() {
-    return dummyStatistics;
-  }
-
   public FunctionStats getFunctionStatsByName(String name) {
-    if (statsDisabled) {
+    MeterRegistry meterRegistryFromSupplier = meterRegistrySupplier.get();
+
+    if (statsDisabled && meterRegistryFromSupplier == null) {
       return dummyFunctionStats;
     }
-    return JavaWorkarounds.computeIfAbsent(functionExecutionStatsMap, name, this::create);
-  }
 
-  public FunctionStats getFunctionStatsFor(Function function) {
-    return getFunctionStatsByName(function.getId());
-  }
-
-  private FunctionStats create(String name) {
-    StatisticsType statisticsType = FunctionStatsImpl.getStatisticsType();
-    Statistics statistics = statisticsFactory.createAtomicStatistics(statisticsType, name);
-    return new FunctionStatsImpl(name, meterRegistrySupplier.get(), statistics,
-        functionServiceStats);
+    return computeIfAbsent(functionExecutionStatsMap, name, key -> create(key, meterRegistryFromSupplier));
   }
 
   public void close() {
@@ -111,6 +77,17 @@ public class FunctionStatsManager {
     }
   }
 
+  private FunctionStats create(String name, MeterRegistry meterRegistryFromSupplier) {
+    MeterRegistry meterRegistry = meterRegistryFromSupplier == null
+        ? noopMeterRegistry
+        : meterRegistryFromSupplier;
+
+    Statistics statistics = statsDisabled
+        ? dummyStatistics
+        : statisticsFactory.createAtomicStatistics(FunctionStatsImpl.getStatisticsType(), name);
+
+    return new FunctionStatsImpl(name, meterRegistry, statistics, functionServiceStats);
+  }
 
   /**
    * Returns the Function Stats for the given function
@@ -129,6 +106,21 @@ public class FunctionStatsManager {
       return dummyFunctionStats;
     }
     return ds.getFunctionStats(functionID);
+  }
+
+  @VisibleForTesting
+  static FunctionStats getDummyFunctionStats() {
+    return dummyFunctionStats;
+  }
+
+  @VisibleForTesting
+  static Statistics getDummyStatistics() {
+    return dummyStatistics;
+  }
+
+  @VisibleForTesting
+  static MeterRegistry getNoopMeterRegistry() {
+    return noopMeterRegistry;
   }
 
   public interface Factory {

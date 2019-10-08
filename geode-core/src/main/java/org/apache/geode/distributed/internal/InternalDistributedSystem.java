@@ -559,7 +559,7 @@ public class InternalDistributedSystem extends DistributedSystem
     functionServiceStats = new FunctionServiceStats(statisticsManager, "FunctionExecution");
 
     this.functionStatsManager = functionStatsManagerFactory.create(statsDisabled, statisticsManager,
-        functionServiceStats, new MeterRegistrySupplier());
+        functionServiceStats, new MeterRegistrySupplier(() -> this));
   }
 
   public SecurityService getSecurityService() {

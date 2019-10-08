@@ -365,8 +365,15 @@ public class FunctionStatsImpl implements FunctionStats {
   }
 
   @Override
+  @VisibleForTesting
   public Statistics getStatistics() {
     return _stats;
+  }
+
+  @Override
+  @VisibleForTesting
+  public MeterRegistry getMeterRegistry() {
+    return meterRegistry;
   }
 
   @VisibleForTesting

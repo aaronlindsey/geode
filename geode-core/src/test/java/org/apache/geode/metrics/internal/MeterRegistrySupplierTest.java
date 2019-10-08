@@ -26,17 +26,17 @@ import org.apache.geode.internal.cache.InternalCache;
 
 public class MeterRegistrySupplierTest {
   @Test
-  public void get_internalDistributedSystemIsNull_expectNoopMeterRegistry() {
+  public void get_internalDistributedSystemIsNull_expectNull() {
     MeterRegistrySupplier meterRegistrySupplier = new MeterRegistrySupplier(() -> null);
 
     MeterRegistry value = meterRegistrySupplier.get();
 
     assertThat(value)
-        .isInstanceOf(NoopMeterRegistry.class);
+        .isNull();
   }
 
   @Test
-  public void get_internalCacheIsNull_expectNoopMeterRegistry() {
+  public void get_internalCacheIsNull_expectNull() {
     InternalDistributedSystem internalDistributedSystem = mock(InternalDistributedSystem.class);
     when(internalDistributedSystem.getCache()).thenReturn(null);
     MeterRegistrySupplier meterRegistrySupplier =
@@ -45,11 +45,11 @@ public class MeterRegistrySupplierTest {
     MeterRegistry value = meterRegistrySupplier.get();
 
     assertThat(value)
-        .isInstanceOf(NoopMeterRegistry.class);
+        .isNull();
   }
 
   @Test
-  public void get_meterRegistryIsNull_expectNoopMeterRegistry() {
+  public void get_meterRegistryIsNull_expectNull() {
     InternalDistributedSystem internalDistributedSystem = mock(InternalDistributedSystem.class);
     InternalCache internalCache = mock(InternalCache.class);
     when(internalDistributedSystem.getCache()).thenReturn(internalCache);
@@ -60,7 +60,7 @@ public class MeterRegistrySupplierTest {
     MeterRegistry value = meterRegistrySupplier.get();
 
     assertThat(value)
-        .isInstanceOf(NoopMeterRegistry.class);
+        .isNull();
   }
 
   @Test

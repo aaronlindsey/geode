@@ -18,7 +18,10 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 import java.util.concurrent.TimeUnit;
 
+import io.micrometer.core.instrument.MeterRegistry;
+
 import org.apache.geode.Statistics;
+import org.apache.geode.annotations.VisibleForTesting;
 
 public interface FunctionStats {
 
@@ -132,5 +135,9 @@ public interface FunctionStats {
 
   }
 
+  @VisibleForTesting
   Statistics getStatistics();
+
+  @VisibleForTesting
+  MeterRegistry getMeterRegistry();
 }
