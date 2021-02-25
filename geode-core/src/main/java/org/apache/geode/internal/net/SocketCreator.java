@@ -28,6 +28,7 @@ import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -276,8 +277,28 @@ public class SocketCreator extends TcpSocketCreatorImpl {
     }
 
     SSLContext newSSLContext = SSLUtil.getSSLContextInstance(sslConfig);
-    KeyManager[] keyManagers = getKeyManagers();
-    TrustManager[] trustManagers = getTrustManagers();
+
+    KeyManager[] keyManagers = new KeyManager[] {FileWatchingX509ExtendedKeyManager.forPath(
+        Paths.get(sslConfig.getKeystore()),
+        () -> {
+          try {
+            return getKeyManagers();
+          } catch (IOException | CertificateException | KeyStoreException
+              | UnrecoverableKeyException | NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+          }
+        })};
+
+    TrustManager[] trustManagers = new TrustManager[] {FileWatchingX509ExtendedTrustManager.forPath(
+        Paths.get(sslConfig.getKeystore()),
+        () -> {
+          try {
+            return getTrustManagers();
+          } catch (IOException | CertificateException | KeyStoreException
+              | NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+          }
+        })};
 
     newSSLContext.init(keyManagers, trustManagers, null /* use the default secure random */);
     return newSSLContext;

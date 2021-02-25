@@ -1,24 +1,17 @@
 package org.apache.geode.internal.net;
 
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.lang.reflect.UndeclaredThrowableException;
 import java.net.Socket;
-import java.nio.file.Paths;
-import java.security.KeyStore;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
+import java.nio.file.Path;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
-import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.TrustManager;
-import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedTrustManager;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.logging.internal.log4j.api.LogService;
@@ -28,23 +21,29 @@ import org.apache.geode.logging.internal.log4j.api.LogService;
 final class FileWatchingX509ExtendedTrustManager extends X509ExtendedTrustManager {
 
   private static final Logger logger = LogService.getLogger();
+  private static final ConcurrentHashMap<Path, FileWatchingX509ExtendedTrustManager> instances =
+      new ConcurrentHashMap<>();
 
   private final AtomicReference<X509ExtendedTrustManager> trustManager = new AtomicReference<>();
+  private final Path truststorePath;
+  private final Supplier<TrustManager[]> trustManagerSupplier;
 
-  private final SSLConfig sslConfig;
+  private FileWatchingX509ExtendedTrustManager(Path truststorePath,
+      Supplier<TrustManager[]> trustManagerSupplier) {
+    this.truststorePath = truststorePath;
+    this.trustManagerSupplier = trustManagerSupplier;
 
-  private final TrustManagerFactory trustManagerFactory;
+    new FileWatcher(truststorePath, new FileWatcherCallback()).watch();
 
-  FileWatchingX509ExtendedTrustManager(SSLConfig sslConfig,
-      TrustManagerFactory trustManagerFactory) {
-    this.sslConfig = sslConfig;
-    this.trustManagerFactory = trustManagerFactory;
-
-    new FileWatcher(Paths.get(this.sslConfig.getTruststore()), new FileWatcherCallback()).watch();
-
-    if (trustManager.compareAndSet(null, getTrustManager(getKeyStore()))) {
-      logger.info(String.format("Initialized TrustManager for %s", this.sslConfig.getTruststore()));
+    if (trustManager.compareAndSet(null, trustManager())) {
+      logger.info(String.format("Initialized TrustManager for %s", this.truststorePath));
     }
+  }
+
+  static FileWatchingX509ExtendedTrustManager forPath(Path path,
+      Supplier<TrustManager[]> supplier) {
+    return instances.computeIfAbsent(path,
+        (Path p) -> new FileWatchingX509ExtendedTrustManager(p, supplier));
   }
 
   @Override
@@ -88,49 +87,24 @@ final class FileWatchingX509ExtendedTrustManager extends X509ExtendedTrustManage
     return trustManager.get().getAcceptedIssuers();
   }
 
-  private KeyStore getKeyStore() {
-    try {
-      String keyStoreType = Objects.toString(sslConfig.getKeystoreType(), "JKS");
-      KeyStore keyStore = KeyStore.getInstance(keyStoreType);
-
-      if (StringUtils.isBlank(sslConfig.getTruststore())) {
-        throw new IllegalStateException("Truststore path is undefined");
+  private X509ExtendedTrustManager trustManager() {
+    for (TrustManager trustManager : trustManagerSupplier.get()) {
+      if (trustManager instanceof X509ExtendedTrustManager) {
+        return (X509ExtendedTrustManager) trustManager;
       }
-
-      try (FileInputStream keyStoreStream = new FileInputStream(sslConfig.getTruststore())) {
-        keyStore.load(keyStoreStream, sslConfig.getTruststorePassword().toCharArray());
-      }
-
-      return keyStore;
-    } catch (CertificateException | NoSuchAlgorithmException | KeyStoreException | IOException e) {
-      throw new UndeclaredThrowableException(e);
     }
-  }
 
-  private X509ExtendedTrustManager getTrustManager(KeyStore keyStore) {
-    try {
-      trustManagerFactory.init(keyStore);
-
-      for (TrustManager trustManager : trustManagerFactory.getTrustManagers()) {
-        if (trustManager instanceof X509ExtendedTrustManager) {
-          return (X509ExtendedTrustManager) trustManager;
-        }
-      }
-
-      throw new IllegalStateException("No X509ExtendedKeyManager available");
-    } catch (KeyStoreException e) {
-      throw new UndeclaredThrowableException(e);
-    }
+    throw new IllegalStateException("No X509ExtendedKeyManager available");
   }
 
   private class FileWatcherCallback implements Runnable {
 
     @Override
     public void run() {
-      if (trustManager.getAndSet(getTrustManager(getKeyStore())) == null) {
-        logger.info(String.format("Initialized TrustManager for %s", sslConfig.getTruststore()));
+      if (trustManager.getAndSet(trustManager()) == null) {
+        logger.info(String.format("Initialized TrustManager for %s", truststorePath));
       } else {
-        logger.info(String.format("Updated TrustManager for %s", sslConfig.getTruststore()));
+        logger.info(String.format("Updated TrustManager for %s", truststorePath));
       }
     }
 
