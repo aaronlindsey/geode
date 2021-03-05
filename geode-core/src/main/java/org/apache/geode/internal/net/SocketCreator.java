@@ -290,7 +290,7 @@ public class SocketCreator extends TcpSocketCreatorImpl {
         })};
 
     TrustManager[] trustManagers = new TrustManager[] {FileWatchingX509ExtendedTrustManager.forPath(
-        Paths.get(sslConfig.getKeystore()),
+        Paths.get(sslConfig.getTruststore()),
         () -> {
           try {
             return getTrustManagers();
