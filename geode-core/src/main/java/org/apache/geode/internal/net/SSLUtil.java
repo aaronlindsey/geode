@@ -36,6 +36,8 @@ import javax.net.ssl.X509TrustManager;
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.geode.annotations.VisibleForTesting;
+import org.apache.geode.internal.net.filewatch.FileWatchingX509ExtendedKeyManager;
+import org.apache.geode.internal.net.filewatch.FileWatchingX509ExtendedTrustManager;
 
 public class SSLUtil {
   /**

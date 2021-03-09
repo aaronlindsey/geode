@@ -1,10 +1,26 @@
-package org.apache.geode.internal.net;
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more contributor license
+ * agreements. See the NOTICE file distributed with this work for additional information regarding
+ * copyright ownership. The ASF licenses this file to You under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the License. You may obtain a
+ * copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package org.apache.geode.internal.net.filewatch;
 
 import java.net.Socket;
 import java.nio.file.Path;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -14,36 +30,34 @@ import javax.net.ssl.X509ExtendedTrustManager;
 
 import org.apache.logging.log4j.Logger;
 
+import org.apache.geode.annotations.VisibleForTesting;
 import org.apache.geode.logging.internal.log4j.api.LogService;
 
-// This is derived from code at https://github.com/cloudfoundry/java-buildpack-security-provider
-// TODO It probably needs copyright notice and Apache license somewhere
-final class FileWatchingX509ExtendedTrustManager extends X509ExtendedTrustManager {
+public final class FileWatchingX509ExtendedTrustManager extends X509ExtendedTrustManager {
 
   private static final Logger logger = LogService.getLogger();
   private static final ConcurrentHashMap<Path, FileWatchingX509ExtendedTrustManager> instances =
       new ConcurrentHashMap<>();
 
   private final AtomicReference<X509ExtendedTrustManager> trustManager = new AtomicReference<>();
-  private final Path truststorePath;
+  private final Path trustStorePath;
   private final Supplier<TrustManager[]> trustManagerSupplier;
 
-  private FileWatchingX509ExtendedTrustManager(Path truststorePath,
-      Supplier<TrustManager[]> trustManagerSupplier) {
-    this.truststorePath = truststorePath;
+  @VisibleForTesting
+  FileWatchingX509ExtendedTrustManager(Path trustStorePath,
+      Supplier<TrustManager[]> trustManagerSupplier, ExecutorService executor) {
+    this.trustStorePath = trustStorePath;
     this.trustManagerSupplier = trustManagerSupplier;
 
-    new FileWatcher(truststorePath, new FileWatcherCallback()).watch();
+    loadTrustManager();
 
-    if (trustManager.compareAndSet(null, trustManager())) {
-      logger.info(String.format("Initialized TrustManager for %s", this.truststorePath));
-    }
+    executor.submit(new FileWatcher(this.trustStorePath, this::loadTrustManager));
   }
 
-  static FileWatchingX509ExtendedTrustManager forPath(Path path,
+  public static FileWatchingX509ExtendedTrustManager forPath(Path path,
       Supplier<TrustManager[]> supplier) {
-    return instances.computeIfAbsent(path,
-        (Path p) -> new FileWatchingX509ExtendedTrustManager(p, supplier));
+    return instances.computeIfAbsent(path, (Path p) -> new FileWatchingX509ExtendedTrustManager(p,
+        supplier, Executors.newSingleThreadExecutor()));
   }
 
   @Override
@@ -87,26 +101,17 @@ final class FileWatchingX509ExtendedTrustManager extends X509ExtendedTrustManage
     return trustManager.get().getAcceptedIssuers();
   }
 
-  private X509ExtendedTrustManager trustManager() {
-    for (TrustManager trustManager : trustManagerSupplier.get()) {
-      if (trustManager instanceof X509ExtendedTrustManager) {
-        return (X509ExtendedTrustManager) trustManager;
+  private void loadTrustManager() {
+    for (TrustManager tm : trustManagerSupplier.get()) {
+      if (tm instanceof X509ExtendedTrustManager) {
+        if (trustManager.getAndSet((X509ExtendedTrustManager) tm) == null) {
+          logger.info("Initialized TrustManager for {}", trustStorePath);
+        } else {
+          logger.info("Updated TrustManager for {}", trustStorePath);
+        }
+        return;
       }
     }
-
-    throw new IllegalStateException("No X509ExtendedKeyManager available");
-  }
-
-  private class FileWatcherCallback implements Runnable {
-
-    @Override
-    public void run() {
-      if (trustManager.getAndSet(trustManager()) == null) {
-        logger.info(String.format("Initialized TrustManager for %s", truststorePath));
-      } else {
-        logger.info(String.format("Updated TrustManager for %s", truststorePath));
-      }
-    }
-
+    throw new IllegalStateException("No X509ExtendedTrustManager available");
   }
 }

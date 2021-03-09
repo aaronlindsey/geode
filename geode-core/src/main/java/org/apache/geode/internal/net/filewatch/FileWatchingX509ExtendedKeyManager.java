@@ -1,4 +1,18 @@
-package org.apache.geode.internal.net;
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more contributor license
+ * agreements. See the NOTICE file distributed with this work for additional information regarding
+ * copyright ownership. The ASF licenses this file to You under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the License. You may obtain a
+ * copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package org.apache.geode.internal.net.filewatch;
 
 import java.net.Socket;
 import java.nio.file.Path;
@@ -6,6 +20,8 @@ import java.security.Principal;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -15,36 +31,35 @@ import javax.net.ssl.X509ExtendedKeyManager;
 
 import org.apache.logging.log4j.Logger;
 
+import org.apache.geode.annotations.VisibleForTesting;
 import org.apache.geode.logging.internal.log4j.api.LogService;
 
-// This is derived from code at https://github.com/cloudfoundry/java-buildpack-security-provider
-// TODO It probably needs copyright notice and Apache license somewhere
-final class FileWatchingX509ExtendedKeyManager extends X509ExtendedKeyManager {
+public final class FileWatchingX509ExtendedKeyManager extends X509ExtendedKeyManager {
 
   private static final Logger logger = LogService.getLogger();
   private static final ConcurrentHashMap<Path, FileWatchingX509ExtendedKeyManager> instances =
       new ConcurrentHashMap<>();
 
   private final AtomicReference<X509ExtendedKeyManager> keyManager = new AtomicReference<>();
-  private final Path keystorePath;
+  private final Path keyStorePath;
   private final Supplier<KeyManager[]> keyManagerSupplier;
 
-  private FileWatchingX509ExtendedKeyManager(Path keystorePath,
-      Supplier<KeyManager[]> keyManagerSupplier) {
-    this.keystorePath = keystorePath;
+  @VisibleForTesting
+  FileWatchingX509ExtendedKeyManager(Path keystorePath, Supplier<KeyManager[]> keyManagerSupplier,
+      ExecutorService executor) {
+    this.keyStorePath = keystorePath;
     this.keyManagerSupplier = keyManagerSupplier;
 
-    new FileWatcher(this.keystorePath, new FileWatcherCallback()).watch();
+    loadKeyManager();
 
-    if (keyManager.compareAndSet(null, keyManager())) {
-      logger.info(String.format("Initialized KeyManager for %s", keystorePath));
-    }
+    executor.submit(new FileWatcher(this.keyStorePath, this::loadKeyManager));
   }
 
-  static FileWatchingX509ExtendedKeyManager forPath(Path keystorePath,
-      Supplier<KeyManager[]> keyManagerSupplier) {
+  public static FileWatchingX509ExtendedKeyManager forPath(Path keystorePath,
+      Supplier<KeyManager[]> supplier) {
     return instances.computeIfAbsent(keystorePath,
-        (Path path) -> new FileWatchingX509ExtendedKeyManager(path, keyManagerSupplier));
+        (Path p) -> new FileWatchingX509ExtendedKeyManager(p, supplier,
+            Executors.newSingleThreadExecutor()));
   }
 
   @Override
@@ -88,27 +103,17 @@ final class FileWatchingX509ExtendedKeyManager extends X509ExtendedKeyManager {
     return keyManager.get().getServerAliases(s, principals);
   }
 
-  private X509ExtendedKeyManager keyManager() {
-    for (KeyManager keyManager : keyManagerSupplier.get()) {
-      if (keyManager instanceof X509ExtendedKeyManager) {
-        return (X509ExtendedKeyManager) keyManager;
+  private void loadKeyManager() {
+    for (KeyManager km : keyManagerSupplier.get()) {
+      if (km instanceof X509ExtendedKeyManager) {
+        if (keyManager.getAndSet((X509ExtendedKeyManager) km) == null) {
+          logger.info("Initialized KeyManager for {}", keyStorePath);
+        } else {
+          logger.info("Updated KeyManager for {}", keyStorePath);
+        }
+        return;
       }
     }
-
     throw new IllegalStateException("No X509ExtendedKeyManager available");
   }
-
-  private final class FileWatcherCallback implements Runnable {
-
-    @Override
-    public void run() {
-      if (keyManager.getAndSet(keyManager()) == null) {
-        logger.info(String.format("Initialized KeyManager for %s", keystorePath));
-      } else {
-        logger.info(String.format("Updated KeyManager for %s", keystorePath));
-      }
-    }
-
-  }
-
 }

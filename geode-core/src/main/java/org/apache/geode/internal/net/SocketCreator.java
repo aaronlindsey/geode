@@ -83,6 +83,8 @@ import org.apache.geode.internal.ClassPathLoader;
 import org.apache.geode.internal.cache.wan.TransportFilterServerSocket;
 import org.apache.geode.internal.cache.wan.TransportFilterSocketFactory;
 import org.apache.geode.internal.inet.LocalHostUtil;
+import org.apache.geode.internal.net.filewatch.FileWatchingX509ExtendedKeyManager;
+import org.apache.geode.internal.net.filewatch.FileWatchingX509ExtendedTrustManager;
 import org.apache.geode.internal.util.ArgumentRedactor;
 import org.apache.geode.internal.util.PasswordUtil;
 import org.apache.geode.logging.internal.log4j.api.LogService;
