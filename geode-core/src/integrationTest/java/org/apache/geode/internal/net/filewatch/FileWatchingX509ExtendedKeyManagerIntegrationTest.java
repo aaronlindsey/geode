@@ -80,7 +80,7 @@ public class FileWatchingX509ExtendedKeyManagerIntegrationTest {
 
   @Test
   public void throwsIfX509ExtendedKeyManagerNotFound() {
-    KeyManager[] keyManagers = new KeyManager[]{new NotAnX509ExtendedKeyManager()};
+    KeyManager[] keyManagers = new KeyManager[] {new NotAnX509ExtendedKeyManager()};
 
     Throwable thrown = catchThrowable(() -> new FileWatchingX509ExtendedKeyManager(
         keyStore.toPath(), () -> keyManagers, executorService.getExecutorService()));
@@ -123,5 +123,6 @@ public class FileWatchingX509ExtendedKeyManagerIntegrationTest {
     }
   }
 
-  private static class NotAnX509ExtendedKeyManager implements KeyManager {}
+  private static class NotAnX509ExtendedKeyManager implements KeyManager {
+  }
 }

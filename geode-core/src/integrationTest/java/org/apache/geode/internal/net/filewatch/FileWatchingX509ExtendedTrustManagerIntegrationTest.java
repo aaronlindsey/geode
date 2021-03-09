@@ -79,7 +79,7 @@ public class FileWatchingX509ExtendedTrustManagerIntegrationTest {
 
   @Test
   public void throwsIfX509ExtendedTrustManagerNotFound() {
-    TrustManager[] trustManagers = new TrustManager[]{new NotAnX509ExtendedTrustManager()};
+    TrustManager[] trustManagers = new TrustManager[] {new NotAnX509ExtendedTrustManager()};
 
     Throwable thrown = catchThrowable(() -> new FileWatchingX509ExtendedTrustManager(
         trustStore.toPath(), () -> trustManagers, executorService.getExecutorService()));
@@ -122,5 +122,6 @@ public class FileWatchingX509ExtendedTrustManagerIntegrationTest {
     }
   }
 
-  private static class NotAnX509ExtendedTrustManager implements TrustManager {}
+  private static class NotAnX509ExtendedTrustManager implements TrustManager {
+  }
 }

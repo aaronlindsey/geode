@@ -28,6 +28,7 @@ import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
@@ -44,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
@@ -280,27 +282,8 @@ public class SocketCreator extends TcpSocketCreatorImpl {
 
     SSLContext newSSLContext = SSLUtil.getSSLContextInstance(sslConfig);
 
-    KeyManager[] keyManagers = new KeyManager[] {FileWatchingX509ExtendedKeyManager.forPath(
-        Paths.get(sslConfig.getKeystore()),
-        () -> {
-          try {
-            return getKeyManagers();
-          } catch (IOException | CertificateException | KeyStoreException
-              | UnrecoverableKeyException | NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
-          }
-        })};
-
-    TrustManager[] trustManagers = new TrustManager[] {FileWatchingX509ExtendedTrustManager.forPath(
-        Paths.get(sslConfig.getTruststore()),
-        () -> {
-          try {
-            return getTrustManagers();
-          } catch (IOException | CertificateException | KeyStoreException
-              | NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
-          }
-        })};
+    KeyManager[] keyManagers = fileWatchingKeyManager();
+    TrustManager[] trustManagers = fileWatchingTrustManager();
 
     newSSLContext.init(keyManagers, trustManagers, null /* use the default secure random */);
     return newSSLContext;
@@ -349,6 +332,20 @@ public class SocketCreator extends TcpSocketCreatorImpl {
     }
   }
 
+  private TrustManager[] fileWatchingTrustManager() {
+    Path path = Paths.get(sslConfig.getTruststore());
+
+    Supplier<TrustManager[]> supplier = () -> {
+      try {
+        return getTrustManagers();
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+    };
+
+    return new TrustManager[] {FileWatchingX509ExtendedTrustManager.forPath(path, supplier)};
+  }
+
   private TrustManager[] getTrustManagers()
       throws KeyStoreException, NoSuchAlgorithmException, CertificateException, IOException {
     TrustManager[] trustManagers;
@@ -389,6 +386,20 @@ public class SocketCreator extends TcpSocketCreatorImpl {
     }
 
     return trustManagers;
+  }
+
+  private KeyManager[] fileWatchingKeyManager() {
+    Path path = Paths.get(sslConfig.getKeystore());
+
+    Supplier<KeyManager[]> supplier = () -> {
+      try {
+        return getKeyManagers();
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+    };
+
+    return new KeyManager[] {FileWatchingX509ExtendedKeyManager.forPath(path, supplier)};
   }
 
   private KeyManager[] getKeyManagers() throws KeyStoreException, IOException,
