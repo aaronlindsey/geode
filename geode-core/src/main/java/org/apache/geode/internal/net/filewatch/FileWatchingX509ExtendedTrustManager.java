@@ -14,15 +14,15 @@
  */
 package org.apache.geode.internal.net.filewatch;
 
+import static java.util.concurrent.Executors.newSingleThreadExecutor;
+
 import java.net.Socket;
 import java.nio.file.Path;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.TrustManager;
@@ -33,6 +33,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.geode.annotations.VisibleForTesting;
 import org.apache.geode.logging.internal.log4j.api.LogService;
 
+/**
+ * Watches a trust store file and updates the underlying trust manager when the file is changed.
+ */
 public final class FileWatchingX509ExtendedTrustManager extends X509ExtendedTrustManager {
 
   private static final Logger logger = LogService.getLogger();
@@ -41,11 +44,11 @@ public final class FileWatchingX509ExtendedTrustManager extends X509ExtendedTrus
 
   private final AtomicReference<X509ExtendedTrustManager> trustManager = new AtomicReference<>();
   private final Path trustStorePath;
-  private final Supplier<TrustManager[]> trustManagerSupplier;
+  private final ThrowingSupplier<TrustManager[]> trustManagerSupplier;
 
   @VisibleForTesting
   FileWatchingX509ExtendedTrustManager(Path trustStorePath,
-      Supplier<TrustManager[]> trustManagerSupplier, ExecutorService executor) {
+      ThrowingSupplier<TrustManager[]> trustManagerSupplier, ExecutorService executor) {
     this.trustStorePath = trustStorePath;
     this.trustManagerSupplier = trustManagerSupplier;
 
@@ -54,10 +57,17 @@ public final class FileWatchingX509ExtendedTrustManager extends X509ExtendedTrus
     executor.submit(new FileWatcher(this.trustStorePath, this::loadTrustManager));
   }
 
+  /**
+   * Returns a {@link FileWatchingX509ExtendedTrustManager} for the given path. A new instance will
+   * be created only if one does not already exist for that path.
+   *
+   * @param path The path to the trust store file
+   * @param supplier A supplier which returns an {@link X509ExtendedTrustManager}
+   */
   public static FileWatchingX509ExtendedTrustManager forPath(Path path,
-      Supplier<TrustManager[]> supplier) {
+      ThrowingSupplier<TrustManager[]> supplier) {
     return instances.computeIfAbsent(path, (Path p) -> new FileWatchingX509ExtendedTrustManager(p,
-        supplier, Executors.newSingleThreadExecutor()));
+        supplier, newSingleThreadExecutor()));
   }
 
   @Override
@@ -102,7 +112,14 @@ public final class FileWatchingX509ExtendedTrustManager extends X509ExtendedTrus
   }
 
   private void loadTrustManager() {
-    for (TrustManager tm : trustManagerSupplier.get()) {
+    TrustManager[] trustManagers;
+    try {
+      trustManagers = trustManagerSupplier.get();
+    } catch (Throwable t) {
+      throw new RuntimeException("Unable to load TrustManager", t);
+    }
+
+    for (TrustManager tm : trustManagers) {
       if (tm instanceof X509ExtendedTrustManager) {
         if (trustManager.getAndSet((X509ExtendedTrustManager) tm) == null) {
           logger.info("Initialized TrustManager for {}", trustStorePath);
@@ -112,6 +129,7 @@ public final class FileWatchingX509ExtendedTrustManager extends X509ExtendedTrus
         return;
       }
     }
+
     throw new IllegalStateException("No X509ExtendedTrustManager available");
   }
 }

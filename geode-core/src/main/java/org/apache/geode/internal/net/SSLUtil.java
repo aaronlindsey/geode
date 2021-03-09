@@ -22,7 +22,6 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
@@ -104,28 +103,28 @@ public class SSLUtil {
       }
       SSLContext ssl = getSSLContextInstance(sslConfig);
 
-      KeyManager[] keyManagers = fileWatchingKeyManager(sslConfig);
-      TrustManager[] trustManagers = fileWatchingTrustManager(sslConfig, skipSslVerification);
+      KeyManager[] keyManagers = null;
+      if (sslConfig.getKeystore() != null) {
+        Path path = Paths.get(sslConfig.getKeystore());
+        keyManagers = new KeyManager[] {
+            FileWatchingX509ExtendedKeyManager.forPath(path, () -> getKeyManagers(sslConfig))
+        };
+      }
+
+      TrustManager[] trustManagers = null;
+      if (sslConfig.getTruststore() != null) {
+        Path path = Paths.get(sslConfig.getTruststore());
+        trustManagers = new TrustManager[] {
+            FileWatchingX509ExtendedTrustManager.forPath(path,
+                () -> getTrustManagers(sslConfig, skipSslVerification))
+        };
+      }
 
       ssl.init(keyManagers, trustManagers, new SecureRandom());
       return ssl;
     } catch (Exception e) {
       throw new RuntimeException(e.getMessage(), e);
     }
-  }
-
-  private static KeyManager[] fileWatchingKeyManager(SSLConfig sslConfig) {
-    Path path = Paths.get(sslConfig.getKeystore());
-
-    Supplier<KeyManager[]> supplier = () -> {
-      try {
-        return getKeyManagers(sslConfig);
-      } catch (Exception e) {
-        throw new RuntimeException(e);
-      }
-    };
-
-    return new KeyManager[] {FileWatchingX509ExtendedKeyManager.forPath(path, supplier)};
   }
 
   private static KeyManager[] getKeyManagers(SSLConfig sslConfig) throws Exception {
@@ -153,21 +152,6 @@ public class SSLUtil {
 
   static KeyManagerFactory getDefaultKeyManagerFactory() throws NoSuchAlgorithmException {
     return KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-  }
-
-  private static TrustManager[] fileWatchingTrustManager(SSLConfig sslConfig,
-      boolean skipSslVerification) {
-    Path path = Paths.get(sslConfig.getTruststore());
-
-    Supplier<TrustManager[]> supplier = () -> {
-      try {
-        return getTrustManagers(sslConfig, skipSslVerification);
-      } catch (Exception e) {
-        throw new RuntimeException(e);
-      }
-    };
-
-    return new TrustManager[] {FileWatchingX509ExtendedTrustManager.forPath(path, supplier)};
   }
 
   private static TrustManager[] getTrustManagers(SSLConfig sslConfig, boolean skipSslVerification)

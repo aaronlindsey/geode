@@ -14,6 +14,8 @@
  */
 package org.apache.geode.internal.net.filewatch;
 
+import static java.util.concurrent.Executors.newSingleThreadExecutor;
+
 import java.net.Socket;
 import java.nio.file.Path;
 import java.security.Principal;
@@ -21,9 +23,7 @@ import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLEngine;
@@ -34,6 +34,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.geode.annotations.VisibleForTesting;
 import org.apache.geode.logging.internal.log4j.api.LogService;
 
+/**
+ * Watches a key store file and updates the underlying key manager when the file is changed.
+ */
 public final class FileWatchingX509ExtendedKeyManager extends X509ExtendedKeyManager {
 
   private static final Logger logger = LogService.getLogger();
@@ -42,10 +45,11 @@ public final class FileWatchingX509ExtendedKeyManager extends X509ExtendedKeyMan
 
   private final AtomicReference<X509ExtendedKeyManager> keyManager = new AtomicReference<>();
   private final Path keyStorePath;
-  private final Supplier<KeyManager[]> keyManagerSupplier;
+  private final ThrowingSupplier<KeyManager[]> keyManagerSupplier;
 
   @VisibleForTesting
-  FileWatchingX509ExtendedKeyManager(Path keystorePath, Supplier<KeyManager[]> keyManagerSupplier,
+  FileWatchingX509ExtendedKeyManager(Path keystorePath,
+      ThrowingSupplier<KeyManager[]> keyManagerSupplier,
       ExecutorService executor) {
     this.keyStorePath = keystorePath;
     this.keyManagerSupplier = keyManagerSupplier;
@@ -55,11 +59,17 @@ public final class FileWatchingX509ExtendedKeyManager extends X509ExtendedKeyMan
     executor.submit(new FileWatcher(this.keyStorePath, this::loadKeyManager));
   }
 
-  public static FileWatchingX509ExtendedKeyManager forPath(Path keystorePath,
-      Supplier<KeyManager[]> supplier) {
-    return instances.computeIfAbsent(keystorePath,
-        (Path p) -> new FileWatchingX509ExtendedKeyManager(p, supplier,
-            Executors.newSingleThreadExecutor()));
+  /**
+   * Returns a {@link FileWatchingX509ExtendedKeyManager} for the given path. A new instance will be
+   * created only if one does not already exist for that path.
+   *
+   * @param path The path to the key store file
+   * @param supplier A supplier which returns an {@link X509ExtendedKeyManager}
+   */
+  public static FileWatchingX509ExtendedKeyManager forPath(Path path,
+      ThrowingSupplier<KeyManager[]> supplier) {
+    return instances.computeIfAbsent(path,
+        (Path p) -> new FileWatchingX509ExtendedKeyManager(p, supplier, newSingleThreadExecutor()));
   }
 
   @Override
@@ -104,7 +114,14 @@ public final class FileWatchingX509ExtendedKeyManager extends X509ExtendedKeyMan
   }
 
   private void loadKeyManager() {
-    for (KeyManager km : keyManagerSupplier.get()) {
+    KeyManager[] keyManagers;
+    try {
+      keyManagers = keyManagerSupplier.get();
+    } catch (Throwable t) {
+      throw new RuntimeException("Unable to load KeyManager", t);
+    }
+
+    for (KeyManager km : keyManagers) {
       if (km instanceof X509ExtendedKeyManager) {
         if (keyManager.getAndSet((X509ExtendedKeyManager) km) == null) {
           logger.info("Initialized KeyManager for {}", keyStorePath);
@@ -114,6 +131,7 @@ public final class FileWatchingX509ExtendedKeyManager extends X509ExtendedKeyMan
         return;
       }
     }
+
     throw new IllegalStateException("No X509ExtendedKeyManager available");
   }
 }

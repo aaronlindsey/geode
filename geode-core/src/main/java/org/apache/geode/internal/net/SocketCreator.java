@@ -45,7 +45,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Supplier;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
@@ -272,9 +271,8 @@ public class SocketCreator extends TcpSocketCreatorImpl {
    * @return new SSLContext configured using the given protocols & properties
    *
    * @throws GeneralSecurityException if security information can not be found
-   * @throws IOException if information can not be loaded
    */
-  private SSLContext createAndConfigureSSLContext() throws GeneralSecurityException, IOException {
+  private SSLContext createAndConfigureSSLContext() throws GeneralSecurityException {
 
     if (sslConfig.useDefaultSSLContext()) {
       return SSLContext.getDefault();
@@ -282,8 +280,21 @@ public class SocketCreator extends TcpSocketCreatorImpl {
 
     SSLContext newSSLContext = SSLUtil.getSSLContextInstance(sslConfig);
 
-    KeyManager[] keyManagers = fileWatchingKeyManager();
-    TrustManager[] trustManagers = fileWatchingTrustManager();
+    KeyManager[] keyManagers = null;
+    if (sslConfig.getKeystore() != null) {
+      Path path = Paths.get(sslConfig.getKeystore());
+      keyManagers = new KeyManager[] {
+          FileWatchingX509ExtendedKeyManager.forPath(path, this::getKeyManagers)
+      };
+    }
+
+    TrustManager[] trustManagers = null;
+    if (sslConfig.getTruststore() != null) {
+      Path path = Paths.get(sslConfig.getTruststore());
+      trustManagers = new TrustManager[] {
+          FileWatchingX509ExtendedTrustManager.forPath(path, this::getTrustManagers)
+      };
+    }
 
     newSSLContext.init(keyManagers, trustManagers, null /* use the default secure random */);
     return newSSLContext;
@@ -332,20 +343,6 @@ public class SocketCreator extends TcpSocketCreatorImpl {
     }
   }
 
-  private TrustManager[] fileWatchingTrustManager() {
-    Path path = Paths.get(sslConfig.getTruststore());
-
-    Supplier<TrustManager[]> supplier = () -> {
-      try {
-        return getTrustManagers();
-      } catch (Exception e) {
-        throw new RuntimeException(e);
-      }
-    };
-
-    return new TrustManager[] {FileWatchingX509ExtendedTrustManager.forPath(path, supplier)};
-  }
-
   private TrustManager[] getTrustManagers()
       throws KeyStoreException, NoSuchAlgorithmException, CertificateException, IOException {
     TrustManager[] trustManagers;
@@ -388,25 +385,8 @@ public class SocketCreator extends TcpSocketCreatorImpl {
     return trustManagers;
   }
 
-  private KeyManager[] fileWatchingKeyManager() {
-    Path path = Paths.get(sslConfig.getKeystore());
-
-    Supplier<KeyManager[]> supplier = () -> {
-      try {
-        return getKeyManagers();
-      } catch (Exception e) {
-        throw new RuntimeException(e);
-      }
-    };
-
-    return new KeyManager[] {FileWatchingX509ExtendedKeyManager.forPath(path, supplier)};
-  }
-
   private KeyManager[] getKeyManagers() throws KeyStoreException, IOException,
       NoSuchAlgorithmException, CertificateException, UnrecoverableKeyException {
-    if (sslConfig.getKeystore() == null) {
-      return null;
-    }
 
     KeyManager[] keyManagers;
     String keyStoreType = sslConfig.getKeystoreType();

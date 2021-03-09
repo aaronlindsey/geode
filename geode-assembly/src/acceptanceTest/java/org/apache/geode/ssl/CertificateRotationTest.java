@@ -14,6 +14,8 @@
  */
 package org.apache.geode.ssl;
 
+import static java.util.regex.Pattern.compile;
+import static java.util.regex.Pattern.quote;
 import static org.apache.geode.cache.client.ClientRegionShortcut.PROXY;
 import static org.apache.geode.internal.AvailablePortHelper.getRandomAvailableTCPPorts;
 import static org.apache.geode.test.awaitility.GeodeAwaitility.await;
@@ -28,6 +30,7 @@ import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
+import java.time.Duration;
 import java.util.Properties;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -60,8 +63,8 @@ public class CertificateRotationTest {
 
   private static final String regionName = "region";
   private static final String dummyStorePass = "geode";
-  private static final Pattern updatedKeyManager = Pattern.compile("Updated KeyManager");
-  private static final Pattern updatedTrustManager = Pattern.compile("Updated TrustManager");
+  private static final Pattern updatedKeyManager = compile("Updated KeyManager");
+  private static final Pattern updatedTrustManager = compile("Updated TrustManager");
 
   @Rule
   public TemporaryFolder temporaryFolder = new TemporaryFolder();
@@ -91,7 +94,7 @@ public class CertificateRotationTest {
    * client has a certificate signed by the same CA and also trusts the CA certificate.
    */
   @Before
-  public void setUp() throws IOException, GeneralSecurityException {
+  public void setUp() throws Exception {
     caCert = new CertificateBuilder()
         .commonName("ca")
         .isCA()
@@ -111,7 +114,7 @@ public class CertificateRotationTest {
   }
 
   /**
-   * This test rotates the cluster's certificate and verifies that the client can form a new TLS
+   * This test rotates the cluster's certificate and verifies that the client can form a new secure
    * connection.
    */
   @Test
@@ -127,12 +130,12 @@ public class CertificateRotationTest {
     waitForMembersToLogMessage(updatedKeyManager);
 
     assertThatCode(() -> region.put("foo", "bar"))
-        .as("The client performs an operation which requires a new connection")
+        .as("The client performs an operation which requires a new secure connection")
         .doesNotThrowAnyException();
   }
 
   /**
-   * This test rotates the client's certificate and verifies that the client can form a new TLS
+   * This test rotates the client's certificate and verifies that the client can form a new secure
    * connection.
    */
   @Test
@@ -148,14 +151,14 @@ public class CertificateRotationTest {
     waitForClientToLogMessage(updatedKeyManager);
 
     assertThatCode(() -> region.put("foo", "bar"))
-        .as("The client performs an operation which requires a new connection")
+        .as("The client performs an operation which requires a new secure connection")
         .doesNotThrowAnyException();
   }
 
   /**
    * This test rotates the CA certificate in both the cluster and the client. It verifies that the
-   * client can form a new TLS connection after the new CA certificate has been added and the old CA
-   * certificate removed.
+   * client can form a new secure connection after the new CA certificate has been added and the old
+   * CA certificate removed.
    */
   @Test
   public void rotateCaCertificate() throws Exception {
@@ -218,14 +221,14 @@ public class CertificateRotationTest {
         .haveExactly(2, linesMatching(updatedTrustManager)));
 
     assertThatCode(() -> region.put("foo", "bar"))
-        .as("The client performs an operation which requires a new connection")
+        .as("The client performs an operation which requires a new secure connection")
         .doesNotThrowAnyException();
   }
 
   /**
    * This test verifies that rotating to an untrusted certificate causes an exception when the
-   * client tries to form a new TLS connection. This is a sanity check that certificates are being
-   * dynamically updated correctly.
+   * client tries to form a new secure connection. This is a sanity check that certificates are
+   * being dynamically updated.
    */
   @Test
   public void untrustedCertificateThrows() throws Exception {
@@ -288,7 +291,7 @@ public class CertificateRotationTest {
     return Files.lines(logFile);
   }
 
-  private void startClient() throws IOException, GeneralSecurityException {
+  private void startClient() throws IOException, GeneralSecurityException, InterruptedException {
     CertificateMaterial clientCert = new CertificateBuilder()
         .commonName("client")
         .issuedBy(caCert)
@@ -318,6 +321,11 @@ public class CertificateRotationTest {
 
     region = client.<String, String>createClientRegionFactory(PROXY)
         .create(regionName);
+
+    // wait for the client to start watching for changes to the key store and trust store files
+    waitForClientToLogMessage(compile(quote("Started watching " + clientKeyStore.getPath())));
+    waitForClientToLogMessage(compile(quote("Started watching " + clientTrustStore.getPath())));
+    Thread.sleep(Duration.ofSeconds(5).toMillis());
   }
 
   private void startCluster() throws IOException, GeneralSecurityException {

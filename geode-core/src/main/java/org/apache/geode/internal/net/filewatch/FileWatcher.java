@@ -65,12 +65,12 @@ final class FileWatcher implements Runnable {
 
         boolean valid = key.reset();
         if (!valid) {
-          logger.warn("Watch key is no longer valid {}", key);
+          logger.warn("Watch key is no longer valid for path {}", path);
           break;
         }
       }
     } catch (InterruptedException e) {
-      logger.warn("Thread interrupted while watching {}", path);
+      logger.debug("Thread interrupted while watching {}", path);
       Thread.currentThread().interrupt();
     } catch (Exception e) {
       logger.warn("Got exception while watching {}", path, e);
