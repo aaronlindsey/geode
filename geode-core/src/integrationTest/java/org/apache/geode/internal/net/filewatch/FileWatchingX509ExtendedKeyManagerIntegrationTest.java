@@ -16,6 +16,7 @@ package org.apache.geode.internal.net.filewatch;
 
 import static org.apache.geode.test.awaitility.GeodeAwaitility.await;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -47,6 +48,7 @@ public class FileWatchingX509ExtendedKeyManagerIntegrationTest {
   public ExecutorServiceRule executorService = new ExecutorServiceRule();
 
   private File keyStore;
+  private FileWatchingX509ExtendedKeyManager target;
 
   @Before
   public void createKeyStoreFile() throws Exception {
@@ -57,7 +59,7 @@ public class FileWatchingX509ExtendedKeyManagerIntegrationTest {
   public void initializesKeyManager() throws Exception {
     CertificateMaterial cert = storeCertificate();
 
-    FileWatchingX509ExtendedKeyManager target = new FileWatchingX509ExtendedKeyManager(
+    target = new FileWatchingX509ExtendedKeyManager(
         keyStore.toPath(), this::loadKeyManagerFromStore, executorService.getExecutorService());
 
     assertThat(target.getCertificateChain(alias)).containsExactly(cert.getCertificate());
@@ -67,18 +69,34 @@ public class FileWatchingX509ExtendedKeyManagerIntegrationTest {
   public void updatesKeyManager() throws Exception {
     storeCertificate();
 
-    FileWatchingX509ExtendedKeyManager target = new FileWatchingX509ExtendedKeyManager(
+    target = new FileWatchingX509ExtendedKeyManager(
         keyStore.toPath(), this::loadKeyManagerFromStore, executorService.getExecutorService());
 
-    // give the file watcher time to start watching for changes
-    Thread.sleep(Duration.ofSeconds(5).toMillis());
+    await()
+        // give the file watcher time to start watching for changes
+        .pollDelay(Duration.ofSeconds(5))
+        .untilAsserted(this::detectsChangeToKeyStoreFile);
+  }
 
+  @Test
+  public void throwsIfX509ExtendedKeyManagerNotFound() {
+    KeyManager[] keyManagers = new KeyManager[]{new NotAnX509ExtendedKeyManager()};
+
+    Throwable thrown = catchThrowable(() -> new FileWatchingX509ExtendedKeyManager(
+        keyStore.toPath(), () -> keyManagers, executorService.getExecutorService()));
+
+    assertThat(thrown).isNotNull();
+  }
+
+  private void detectsChangeToKeyStoreFile() throws Exception {
     CertificateMaterial updated = storeCertificate();
 
-    await().untilAsserted(() -> {
-      X509Certificate[] chain = target.getCertificateChain(alias);
-      assertThat(chain).containsExactly(updated.getCertificate());
-    });
+    await()
+        .atMost(Duration.ofMinutes(1))
+        .untilAsserted(() -> {
+          X509Certificate[] chain = target.getCertificateChain(alias);
+          assertThat(chain).containsExactly(updated.getCertificate());
+        });
   }
 
   private CertificateMaterial storeCertificate() throws Exception {
@@ -104,4 +122,6 @@ public class FileWatchingX509ExtendedKeyManagerIntegrationTest {
       throw new RuntimeException(e);
     }
   }
+
+  private static class NotAnX509ExtendedKeyManager implements KeyManager {}
 }
