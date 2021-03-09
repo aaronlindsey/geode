@@ -49,6 +49,13 @@ import org.apache.geode.cache.ssl.CertificateBuilder;
 import org.apache.geode.cache.ssl.CertificateMaterial;
 import org.apache.geode.test.junit.rules.gfsh.GfshRule;
 
+/**
+ * This test creates a cluster and a client with SSL enabled for all components and client
+ * authentication enabled.
+ *
+ * It verifies that the cluster certificate, the client certificate, and the CA certificate can be
+ * rotated without having to restart the client or the members.
+ */
 public class CertificateRotationTest {
 
   private static final String regionName = "region";
@@ -77,7 +84,7 @@ public class CertificateRotationTest {
   private File clientTrustStore;
   private File clientLogFile;
 
-  /*
+  /**
    * The test setup creates a cluster with 1 locator and 2 servers, a client cache, and a CA
    * certificate. The cluster has SSL enabled for all components and uses client authentication. The
    * cluster members share a certificate which is signed by a CA and trust the CA certificate. The
@@ -103,6 +110,10 @@ public class CertificateRotationTest {
     shutdownCluster();
   }
 
+  /**
+   * This test rotates the cluster's certificate and verifies that the client can form a new TLS
+   * connection.
+   */
   @Test
   public void rotateClusterCertificate() throws Exception {
     CertificateMaterial newClusterCert = new CertificateBuilder()
@@ -120,6 +131,10 @@ public class CertificateRotationTest {
         .doesNotThrowAnyException();
   }
 
+  /**
+   * This test rotates the client's certificate and verifies that the client can form a new TLS
+   * connection.
+   */
   @Test
   public void rotateClientCertificate() throws Exception {
     CertificateMaterial newClientCert = new CertificateBuilder()
@@ -137,6 +152,11 @@ public class CertificateRotationTest {
         .doesNotThrowAnyException();
   }
 
+  /**
+   * This test rotates the CA certificate in both the cluster and the client. It verifies that the
+   * client can form a new TLS connection after the new CA certificate has been added and the old CA
+   * certificate removed.
+   */
   @Test
   public void rotateCaCertificate() throws Exception {
     /*
@@ -202,6 +222,11 @@ public class CertificateRotationTest {
         .doesNotThrowAnyException();
   }
 
+  /**
+   * This test verifies that rotating to an untrusted certificate causes an exception when the
+   * client tries to form a new TLS connection. This is a sanity check that certificates are being
+   * dynamically updated correctly.
+   */
   @Test
   public void untrustedCertificateThrows() throws Exception {
     CertificateMaterial selfSignedCert = new CertificateBuilder()
